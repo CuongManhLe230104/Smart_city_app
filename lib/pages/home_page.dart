@@ -5,7 +5,8 @@ import '../pages/start_page.dart';
 import 'placeholder_page.dart';
 import 'package:smart_city/services/api_service.dart';
 // import 'test_api_page.dart'; // Xóa vì không dùng nữa
-import 'test_map_page.dart';
+import './test_map_page.dart'; // <-- 1. SỬA LỖI IMPORT
+import 'bus_routes_page.dart';
 
 class HomePage extends StatefulWidget {
   final UserModel user;
@@ -23,9 +24,7 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _pages = [
-      HomeTab(
-        user: widget.user,
-      ), // Lỗi này sẽ được sửa khi lớp HomeTab được tạo
+      HomeTab(user: widget.user),
       const PlaceholderPage(title: 'Bản đồ Vũng Tàu'),
       const SettingsPage(),
     ];
@@ -144,6 +143,15 @@ class _HomeTabState extends State<HomeTab> {
 
   @override
   Widget build(BuildContext context) {
+    // --- 3. LẤY VÀ ĐỊNH DẠNG NGÀY HIỆN TẠI ---
+    final now = DateTime.now();
+    // Định dạng ngày: vd 01/11/2025
+    final day = now.day.toString().padLeft(2, '0');
+    final month = now.month.toString().padLeft(2, '0');
+    final year = now.year;
+    final String formattedDate = "$day/$month/$year";
+    // ------------------------------------------
+
     // --- BƯỚC 2: SỬA LẠI DANH SÁCH CHỨC NĂNG BỊ THIẾU ---
     final List<_FunctionItem> functionItems = [
       _FunctionItem(
@@ -154,10 +162,11 @@ class _HomeTabState extends State<HomeTab> {
       _FunctionItem(
         title: 'Tuyến xe buýt',
         icon: Icons.directions_bus,
+        // --- 2. SỬA LỖI Ở ĐÂY ---
         onTap: () => _navigateTo(
           context,
-          const PlaceholderPage(title: 'Tuyến xe buýt'),
-        ), // Sửa lại logic
+          const BusRoutesPage(), // Trỏ đến trang xe buýt thật
+        ),
       ),
       _FunctionItem(
         title: 'Tìm kiếm địa điểm',
@@ -252,7 +261,12 @@ class _HomeTabState extends State<HomeTab> {
                   style: const TextStyle(fontSize: 16),
                 ), // Dùng user
                 const SizedBox(height: 4),
-                const Text('23/10/2025', style: TextStyle(fontSize: 16)),
+                // --- 3. SỬ DỤNG NGÀY ĐÃ ĐỊNH DẠNG ---
+                Text(
+                  formattedDate, // Thay thế cho '23/10/2025'
+                  style: const TextStyle(fontSize: 16),
+                ),
+                // ------------------------------------
               ],
             ),
           ],
