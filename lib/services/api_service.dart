@@ -1,6 +1,7 @@
 import 'dart:convert'; // SỬA: Dùng dấu hai chấm (:)
 import 'package:http/http.dart' as http; // SỬA: Dùng dấu hai chấm (:)
 import '../models/bus_route_model.dart';
+import '../models/location_search_result.dart';
 
 class ApiService {
   // --- 1. API THỜI TIẾT (Giữ nguyên) ---
@@ -36,28 +37,31 @@ class ApiService {
   static const String _mapApiKey = 'pk.775aea632346a6c8295fe849c170b94b';
   static const String _mapBaseUrl = 'https://us1.locationiq.com/v1';
 
-  Future<String> fetchMapCoordinates() async {
+  Future<Map<String, double>> fetchMapCoordinates() async {
     try {
       const String query = 'Vung Tau, Ba Ria - Vung Tau, Vietnam';
       final Uri url = Uri.parse(
         '$_mapBaseUrl/search?key=$_mapApiKey&q=$query&format=json',
       );
       final http.Response response = await http.get(url);
+
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
         if (data.isNotEmpty) {
           final Map<String, dynamic> firstResult = data[0];
-          final String lat = firstResult['lat'];
-          final String lon = firstResult['lon'];
-          return "Tìm thấy Vũng Tàu!\nTọa độ (Lat/Lon): $lat / $lon";
+
+          // SỬA: Parse string sang double và trả về Map
+          final double lat = double.parse(firstResult['lat']);
+          final double lon = double.parse(firstResult['lon']);
+          return {'lat': lat, 'lon': lon};
         } else {
-          return 'Lỗi: Không tìm thấy kết quả cho Vũng Tàu.';
+          throw Exception('Không tìm thấy kết quả cho Vũng Tàu.');
         }
       } else {
-        return 'Lỗi: ${response.statusCode}';
+        throw Exception('Lỗi API LocationIQ: ${response.statusCode}');
       }
     } catch (e) {
-      return 'Lỗi kết nối: $e';
+      throw Exception('Lỗi kết nối: $e');
     }
   }
 
@@ -82,6 +86,36 @@ class ApiService {
       return jsonData.map((json) => BusRouteModel.fromJson(json)).toList();
     } else {
       throw Exception('Lỗi khi tải tuyến xe buýt: ${response.statusCode}');
+    }
+  }
+
+  // --- 4. HÀM MỚI BỊ THIẾU ĐỂ GỌI API SEARCH ---
+  Future<List<LocationSearchResult>> searchLocations(String query) async {
+    // Tạo URL với query (đã được mã hóa)
+    final Uri url = Uri.parse(
+      '$_myApiBaseUrl/api/search',
+    ).replace(queryParameters: {'q': query});
+
+    final http.Response response;
+
+    try {
+      response = await http.get(url);
+    } catch (e) {
+      throw Exception(
+        'Lỗi kết nối: Không thể kết nối tới backend. Backend đã chạy chưa?',
+      );
+    }
+
+    if (response.statusCode == 200) {
+      final String responseBody = utf8.decode(response.bodyBytes);
+      final List<dynamic> jsonData = jsonDecode(responseBody);
+
+      // Chuyển JSON (List) sang List<LocationSearchResult>
+      return jsonData
+          .map((json) => LocationSearchResult.fromJson(json))
+          .toList();
+    } else {
+      throw Exception('Lỗi server (Search): ${response.statusCode}');
     }
   }
 }
