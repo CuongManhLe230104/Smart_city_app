@@ -7,6 +7,7 @@ import 'package:smart_city/services/api_service.dart';
 // import 'test_api_page.dart'; // Xóa vì không dùng nữa
 import './test_map_page.dart'; // <-- 1. SỬA LỖI IMPORT
 import 'bus_routes_page.dart';
+import 'search_page.dart';
 
 class HomePage extends StatefulWidget {
   final UserModel user;
@@ -157,6 +158,7 @@ class _HomeTabState extends State<HomeTab> {
       _FunctionItem(
         title: 'Bản đồ',
         icon: Icons.map_outlined,
+        // SỬA: Trỏ đến trang Search
         onTap: () => _navigateTo(context, const MapTestPage()),
       ),
       _FunctionItem(
@@ -171,10 +173,8 @@ class _HomeTabState extends State<HomeTab> {
       _FunctionItem(
         title: 'Tìm kiếm địa điểm',
         icon: Icons.search,
-        onTap: () => _navigateTo(
-          context,
-          const PlaceholderPage(title: 'Tìm kiếm địa điểm'),
-        ),
+        // SỬA: Trỏ đến trang Search
+        onTap: () => _navigateTo(context, const SearchPage()),
       ),
       _FunctionItem(
         title: 'Phản ánh góp ý',
