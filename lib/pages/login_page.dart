@@ -31,7 +31,7 @@ class _LoginPageState extends State<LoginPage> {
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Sai tài khoản hoặc mật khẩu ❌')),
+        const SnackBar(content: Text('Sai tài khoản hoặc mật khẩu ')),
       );
     }
   }
