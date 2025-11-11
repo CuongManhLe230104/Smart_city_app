@@ -2,9 +2,10 @@ import 'dart:convert'; // SỬA: Dùng dấu hai chấm (:)
 import 'package:http/http.dart' as http; // SỬA: Dùng dấu hai chấm (:)
 import '../models/bus_route_model.dart';
 import '../models/location_search_result.dart';
+import '../models/event_banner_model.dart';
 
 class ApiService {
-  // --- 1. API THỜI TIẾT (Giữ nguyên) ---
+  // --- 1. API THỜI TIẾT ---
   static const String _weatherApiKey = 'b19130f92ebc617c3b3f0d52f0178d18';
   static const String _weatherBaseUrl =
       'https://api.openweathermap.org/data/2.5';
@@ -33,7 +34,7 @@ class ApiService {
     }
   }
 
-  // --- 2. API BẢN ĐỒ (Giữ nguyên) ---
+  // --- 2. API BẢN ĐỒ ---
   static const String _mapApiKey = 'pk.775aea632346a6c8295fe849c170b94b';
   static const String _mapBaseUrl = 'https://us1.locationiq.com/v1';
 
@@ -116,6 +117,27 @@ class ApiService {
           .toList();
     } else {
       throw Exception('Lỗi server (Search): ${response.statusCode}');
+    }
+  }
+
+  Future<List<EventBannerModel>> fetchEventBanners() async {
+    final Uri url = Uri.parse('$_myApiBaseUrl/api/EventBanners');
+    final http.Response response;
+
+    try {
+      response = await http.get(url);
+    } catch (e) {
+      throw Exception(
+        'Lỗi kết nối: Không thể kết nối tới backend. Backend đã chạy chưa?',
+      );
+    }
+
+    if (response.statusCode == 200) {
+      final String responseBody = utf8.decode(response.bodyBytes);
+      final List<dynamic> jsonData = jsonDecode(responseBody);
+      return jsonData.map((json) => EventBannerModel.fromJson(json)).toList();
+    } else {
+      throw Exception('Lỗi khi tải banner sự kiện: ${response.statusCode}');
     }
   }
 }

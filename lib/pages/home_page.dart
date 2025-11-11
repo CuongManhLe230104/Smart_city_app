@@ -4,10 +4,10 @@ import 'settings_page.dart';
 import '../pages/start_page.dart';
 import 'placeholder_page.dart';
 import 'package:smart_city/services/api_service.dart';
-// import 'test_api_page.dart'; // Xóa vì không dùng nữa
-import './test_map_page.dart'; // <-- 1. SỬA LỖI IMPORT
+import './test_map_page.dart';
 import 'bus_routes_page.dart';
 import 'search_page.dart';
+import '../models/event_banner_model.dart';
 
 class HomePage extends StatefulWidget {
   final UserModel user;
@@ -116,12 +116,14 @@ class _HomeTabState extends State<HomeTab> {
 
   // 2. Tạo instance của ApiService
   final ApiService _apiService = ApiService();
+  late Future<List<EventBannerModel>> _bannersFuture;
 
   @override
   void initState() {
     super.initState();
     // 3. Gọi API khi widget được tải
     _fetchWeather();
+    _bannersFuture = _apiService.fetchEventBanners();
   }
 
   // 4. Hàm gọi API
@@ -140,6 +142,154 @@ class _HomeTabState extends State<HomeTab> {
   // Helper điều hướng
   void _navigateTo(BuildContext context, Widget page) {
     Navigator.push(context, MaterialPageRoute(builder: (context) => page));
+  }
+
+  Widget _buildBannerSection() {
+    return SizedBox(
+      height: 150, // Giữ chiều cao 150
+      child: FutureBuilder<List<EventBannerModel>>(
+        future: _bannersFuture,
+        builder: (context, snapshot) {
+          // A. Đang tải
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            // Hiển thị khung chờ
+            return Card(
+              clipBehavior: Clip.antiAlias,
+              elevation: 3,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Container(
+                color: Colors.blueGrey.shade100,
+                child: const Center(child: CircularProgressIndicator()),
+              ),
+            );
+          }
+
+          // B. Bị lỗi
+          if (snapshot.hasError) {
+            return Card(
+              clipBehavior: Clip.antiAlias,
+              elevation: 3,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Container(
+                color: Colors.red.shade100,
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Text(
+                      'Lỗi tải sự kiện:\n${snapshot.error}',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.red.shade900),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }
+
+          // C. Không có dữ liệu
+          if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            return const Center(child: Text('Không có sự kiện nào.'));
+          }
+
+          // D. Có dữ liệu -> Hiển thị PageView
+          final banners = snapshot.data!;
+          return PageView.builder(
+            itemCount: banners.length,
+            itemBuilder: (context, index) {
+              final banner = banners[index];
+              return Card(
+                clipBehavior: Clip.antiAlias,
+                elevation: 3,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                margin: const EdgeInsets.symmetric(
+                  horizontal: 4,
+                ), // Thêm khoảng cách
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    // --- Hình ảnh (Lấy từ URL) ---
+                    Image.network(
+                      banner.imageUrl,
+                      fit: BoxFit.cover,
+                      // Hiển thị loading/lỗi cho từng ảnh
+                      loadingBuilder: (context, child, progress) {
+                        if (progress == null) return child;
+                        return const Center(child: CircularProgressIndicator());
+                      },
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          color: Colors.grey.shade300,
+                          child: const Icon(
+                            Icons.image_not_supported,
+                            color: Colors.grey,
+                          ),
+                        );
+                      },
+                    ),
+                    // --- Lớp phủ (overlay) màu đen mờ ---
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.black.withOpacity(0.7),
+                            Colors.transparent,
+                            Colors.transparent,
+                          ],
+                          begin: Alignment.bottomCenter,
+                          end: Alignment.topCenter,
+                          stops: const [0.0, 0.5, 1.0],
+                        ),
+                      ),
+                    ),
+                    // --- Văn bản (Tiêu đề, Mô tả) ---
+                    Positioned(
+                      bottom: 16,
+                      left: 16,
+                      right: 16,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            banner.title,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              shadows: [
+                                Shadow(blurRadius: 3, color: Colors.black),
+                              ],
+                            ),
+                          ),
+                          if (banner.description != null)
+                            Text(
+                              banner.description!,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                shadows: [
+                                  Shadow(blurRadius: 3, color: Colors.black),
+                                ],
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
   }
 
   @override
@@ -233,7 +383,6 @@ class _HomeTabState extends State<HomeTab> {
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 4),
-                // 5. Cập nhật UI thời tiết
                 _isLoadingWeather
                     ? const SizedBox(
                         height: 20,
@@ -241,10 +390,9 @@ class _HomeTabState extends State<HomeTab> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : Text(
-                        _weatherResult, // Hiển thị kết quả API
+                        _weatherResult,
                         style: TextStyle(
                           fontSize: 16,
-                          // Đổi màu nếu là lỗi
                           color: _weatherResult.startsWith('Lỗi:')
                               ? Colors.red
                               : null,
@@ -259,14 +407,9 @@ class _HomeTabState extends State<HomeTab> {
                 Text(
                   'Chào, ${widget.user.username}',
                   style: const TextStyle(fontSize: 16),
-                ), // Dùng user
-                const SizedBox(height: 4),
-                // --- 3. SỬ DỤNG NGÀY ĐÃ ĐỊNH DẠNG ---
-                Text(
-                  formattedDate, // Thay thế cho '23/10/2025'
-                  style: const TextStyle(fontSize: 16),
                 ),
-                // ------------------------------------
+                const SizedBox(height: 4),
+                Text(formattedDate, style: const TextStyle(fontSize: 16)),
               ],
             ),
           ],
@@ -274,28 +417,7 @@ class _HomeTabState extends State<HomeTab> {
         const SizedBox(height: 24),
 
         // --- Banner sự kiện ---
-        Text(
-          'Sự kiện nổi bật',
-          style: Theme.of(context).textTheme.headlineSmall,
-        ),
-        const SizedBox(height: 8),
-        Card(
-          clipBehavior: Clip.antiAlias,
-          elevation: 3,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Container(
-            height: 150,
-            color: Colors.blueGrey.shade100,
-            child: const Center(
-              child: Text(
-                'Banner sự kiện (Chợ quê...)',
-                style: TextStyle(fontSize: 18, color: Colors.black54),
-              ),
-            ),
-          ),
-        ),
+        _buildBannerSection(),
         const SizedBox(height: 24),
 
         // --- Grid chức năng ---
