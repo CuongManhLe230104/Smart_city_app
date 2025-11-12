@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "330876051051",
+    "project_id": "dacn-61679",
+    "storage_bucket": "dacn-61679.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:330876051051:android:0ddc6401888e73a8eb9b2e",
+        "android_client_info": {
+          "package_name": "com.example.smart_city"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC-DAKdMfzhmJDds-4FVS4lxIZ7nAjHHWk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
