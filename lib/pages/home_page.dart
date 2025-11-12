@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
 import 'settings_page.dart';
-import '../pages/start_page.dart';
+// import '../pages/start_page.dart';
 import 'placeholder_page.dart';
 import 'package:smart_city/services/api_service.dart';
 import './test_map_page.dart';
 import 'bus_routes_page.dart';
 import 'search_page.dart';
 import '../models/event_banner_model.dart';
+import '../auth/screens/login_screen.dart';
 
 class HomePage extends StatefulWidget {
   final UserModel user;
@@ -26,7 +27,6 @@ class _HomePageState extends State<HomePage> {
     super.initState();
     _pages = [
       HomeTab(user: widget.user),
-      const PlaceholderPage(title: 'Bản đồ Vũng Tàu'),
       const SettingsPage(),
     ];
   }
@@ -47,7 +47,7 @@ class _HomePageState extends State<HomePage> {
               Navigator.pop(context);
               Navigator.pushAndRemoveUntil(
                 context,
-                MaterialPageRoute(builder: (context) => const StartPage()),
+                MaterialPageRoute(builder: (context) => const LoginScreen()),
                 (route) => false,
               );
             },
@@ -80,8 +80,14 @@ class _HomePageState extends State<HomePage> {
         currentIndex: _currentIndex,
         onTap: (i) => setState(() => _currentIndex = i),
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Trang chủ'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Cài đặt'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home),
+            label: 'Trang chủ',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.settings),
+            label: 'Cài đặt',
+          ),
         ],
       ),
     );
