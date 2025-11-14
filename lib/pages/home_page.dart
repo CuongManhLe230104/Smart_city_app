@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
 import 'settings_page.dart';
-// import '../pages/start_page.dart';
 import 'placeholder_page.dart';
 import 'package:smart_city/services/api_service.dart';
 import './test_map_page.dart';
@@ -9,6 +8,8 @@ import 'bus_routes_page.dart';
 import 'search_page.dart';
 import '../models/event_banner_model.dart';
 import '../auth/screens/login_screen.dart';
+import '../pages/public_feedback_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class HomePage extends StatefulWidget {
   final UserModel user;
@@ -27,54 +28,59 @@ class _HomePageState extends State<HomePage> {
     super.initState();
     _pages = [
       HomeTab(user: widget.user),
-      const SettingsPage(),
+      SettingsPage(user: widget.user), // ⭐ Thêm settings page
     ];
   }
 
-  void _logout() {
-    showDialog(
+  Future<void> _logout() async {
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Xác nhận'),
         content: const Text('Bạn có chắc muốn đăng xuất không?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, false),
             child: const Text('Hủy'),
           ),
           TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (context) => const LoginScreen()),
-                (route) => false,
-              );
-            },
+            onPressed: () => Navigator.pop(context, true),
             child: const Text('Đăng xuất'),
           ),
         ],
       ),
     );
+
+    if (confirmed == true) {
+      // Xóa token và user data
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
+
+      if (mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+          (route) => false,
+        );
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          _currentIndex == 0
-              ? 'Trang chủ'
-              : (_currentIndex == 1 ? 'Bản đồ Vũng Tàu' : 'Cài đặt'),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Đăng xuất',
-            onPressed: _logout,
-          ),
-        ],
-      ),
+      appBar: _currentIndex == 0 // ⭐ Chỉ hiện AppBar ở Home tab
+          ? AppBar(
+              title: const Text('Trang chủ'),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.logout),
+                  tooltip: 'Đăng xuất',
+                  onPressed: _logout,
+                ),
+              ],
+            )
+          : null, // Settings Page có AppBar riêng
       body: IndexedStack(index: _currentIndex, children: _pages),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
@@ -334,10 +340,10 @@ class _HomeTabState extends State<HomeTab> {
       ),
       _FunctionItem(
         title: 'Phản ánh góp ý',
-        icon: Icons.edit_note,
+        icon: Icons.forum,
         onTap: () => _navigateTo(
           context,
-          const PlaceholderPage(title: 'Phản ánh góp ý'),
+          PublicFeedbacksScreen(user: widget.user),
         ),
       ),
       _FunctionItem(

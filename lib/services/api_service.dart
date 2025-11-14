@@ -140,4 +140,46 @@ class ApiService {
       throw Exception('Lỗi khi tải banner sự kiện: ${response.statusCode}');
     }
   }
+
+  // Thêm method tìm kiếm bus routes
+  Future<List<BusRouteModel>> searchBusRoutes(String query) async {
+    final Uri url = Uri.parse('$_myApiBaseUrl/api/BusRoutes/search')
+        .replace(queryParameters: {'q': query});
+
+    final http.Response response;
+
+    try {
+      response = await http.get(url);
+    } catch (e) {
+      throw Exception('Lỗi kết nối: Không thể kết nối tới backend.');
+    }
+
+    if (response.statusCode == 200) {
+      final String responseBody = utf8.decode(response.bodyBytes);
+      final List<dynamic> jsonData = jsonDecode(responseBody);
+      return jsonData.map((json) => BusRouteModel.fromJson(json)).toList();
+    } else {
+      throw Exception('Lỗi khi tìm kiếm tuyến xe buýt: ${response.statusCode}');
+    }
+  }
+
+  // Thêm method lấy chi tiết bus route
+  Future<BusRouteModel> getBusRouteDetail(int id) async {
+    final Uri url = Uri.parse('$_myApiBaseUrl/api/BusRoutes/$id');
+    final http.Response response;
+
+    try {
+      response = await http.get(url);
+    } catch (e) {
+      throw Exception('Lỗi kết nối: Không thể kết nối tới backend.');
+    }
+
+    if (response.statusCode == 200) {
+      final String responseBody = utf8.decode(response.bodyBytes);
+      final Map<String, dynamic> jsonData = jsonDecode(responseBody);
+      return BusRouteModel.fromJson(jsonData);
+    } else {
+      throw Exception('Lỗi khi tải chi tiết tuyến: ${response.statusCode}');
+    }
+  }
 }
