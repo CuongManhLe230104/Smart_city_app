@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+// import 'package:firebase_auth/firebase_auth.dart';
 import '../screens/register_screen.dart';
 import '../../pages/home_page.dart';
 import '../../models/user_model.dart';
+import '../../services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -25,6 +26,7 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  // Thay thế Firebase auth bằng API call
   Future<void> _signIn() async {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -36,68 +38,37 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      final credential = await FirebaseAuth.instance.signInWithEmailAndPassword(
+      final result = await AuthService.login(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
 
-      debugPrint('✅ Đăng nhập thành công: ${credential.user?.email}');
-
-      if (mounted && credential.user != null) {
-        // Tạo UserModel
+      if (result['success']) {
+        // Đăng nhập thành công
+        final userData = result['data']['user'];
         final userModel = UserModel(
-          id: credential.user!.uid,
-          username: credential.user!.email?.split('@')[0] ?? 'User',
-          email: credential.user!.email ?? '',
+          id: userData['id'].toString(),
+          username: userData['fullName'] ?? userData['email'].split('@')[0],
+          email: userData['email'],
         );
 
-        // Navigate đến HomePage và xóa tất cả route trước đó
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(
-            builder: (context) => HomePage(user: userModel),
-          ),
-          (route) => false, // Xóa hết navigation stack
-        );
-      }
-    } on FirebaseAuthException catch (e) {
-      debugPrint('❌ Lỗi Firebase Auth: ${e.code}');
-
-      if (mounted) {
+        if (mounted) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(
+              builder: (context) => HomePage(user: userModel),
+            ),
+            (route) => false,
+          );
+        }
+      } else {
         setState(() {
-          switch (e.code) {
-            case 'user-not-found':
-              _errorMessage = 'Không tìm thấy tài khoản với email này';
-              break;
-            case 'wrong-password':
-              _errorMessage = 'Mật khẩu không đúng';
-              break;
-            case 'invalid-email':
-              _errorMessage = 'Email không hợp lệ';
-              break;
-            case 'user-disabled':
-              _errorMessage = 'Tài khoản đã bị vô hiệu hóa';
-              break;
-            case 'too-many-requests':
-              _errorMessage = 'Quá nhiều lần thử. Vui lòng thử lại sau';
-              break;
-            case 'network-request-failed':
-              _errorMessage = 'Không có kết nối mạng';
-              break;
-            case 'invalid-credential':
-              _errorMessage = 'Email hoặc mật khẩu không đúng';
-              break;
-            default:
-              _errorMessage = 'Lỗi đăng nhập: ${e.message}';
-          }
+          _errorMessage = result['message'];
         });
       }
     } catch (e) {
-      debugPrint('❌ Lỗi không xác định: $e');
-      if (mounted) {
-        setState(() {
-          _errorMessage = 'Đã xảy ra lỗi: $e';
-        });
-      }
+      setState(() {
+        _errorMessage = 'Đã xảy ra lỗi: $e';
+      });
     } finally {
       if (mounted) {
         setState(() {
