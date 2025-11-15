@@ -6,6 +6,7 @@ import 'package:geocoding/geocoding.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../models/user_model.dart';
 import '../services/floodreport_service.dart';
+import '../services/upload_service.dart';
 import 'dart:async';
 
 class FloodReportPage extends StatefulWidget {
@@ -20,18 +21,21 @@ class _FloodReportPageState extends State<FloodReportPage> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
-  final ImagePicker _picker = ImagePicker(); // ✅ Thêm dòng này
+  final ImagePicker _picker = ImagePicker();
 
   File? _selectedImage;
+  String? _uploadedImageUrl;
   Position? _currentPosition;
   String? _currentAddress;
   bool _isLoading = false;
+  bool _isUploading = false;
+  bool _isGettingLocation = false;
   String _waterLevel = 'Low';
 
   @override
   void initState() {
     super.initState();
-    _requestLocationPermission();
+    _checkPermissions();
   }
 
   @override
@@ -41,206 +45,16 @@ class _FloodReportPageState extends State<FloodReportPage> {
     super.dispose();
   }
 
-  // ✅ Request location permission
-  Future<void> _requestLocationPermission() async {
-    try {
-      PermissionStatus status = await Permission.location.status;
+  // 🔐 Kiểm tra quyền
+  Future<void> _checkPermissions() async {
+    final cameraStatus = await Permission.camera.status;
+    final locationStatus = await Permission.location.status;
 
-      if (status.isDenied) {
-        status = await Permission.location.request();
-      }
-
-      if (status.isPermanentlyDenied) {
-        _showPermissionDialog();
-      } else if (status.isGranted) {
-        _getCurrentLocation();
-      }
-    } catch (e) {
-      debugPrint('Error requesting permission: $e');
+    if (!cameraStatus.isGranted) {
+      await Permission.camera.request();
     }
-  }
-
-  void _showPermissionDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Cần quyền truy cập vị trí'),
-        content: const Text(
-          'Ứng dụng cần quyền truy cập vị trí để gửi báo cáo ngập lụt. '
-          'Vui lòng bật quyền trong Cài đặt.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Hủy'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              openAppSettings();
-            },
-            child: const Text('Mở Cài đặt'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // 📍 Lấy vị trí hiện tại
-  Future<void> _getCurrentLocation() async {
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      // ✅ Kiểm tra Location Service
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('⚠️ Vui lòng bật GPS trong Settings'),
-              backgroundColor: Colors.orange,
-              action: SnackBarAction(
-                label: 'Mở Settings',
-                textColor: Colors.white,
-                onPressed: Geolocator.openLocationSettings,
-              ),
-            ),
-          );
-        }
-        setState(() {
-          _isLoading = false;
-        });
-        return;
-      }
-
-      // ✅ Kiểm tra Permission
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('❌ Cần quyền truy cập vị trí để gửi báo cáo'),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
-          setState(() {
-            _isLoading = false;
-          });
-          return;
-        }
-      }
-
-      if (permission == LocationPermission.deniedForever) {
-        _showPermissionDialog();
-        setState(() {
-          _isLoading = false;
-        });
-        return;
-      }
-
-      // ✅ Lấy vị trí với độ chính xác cao
-      debugPrint('🔍 Đang lấy vị trí...');
-
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 10), // ✅ Timeout sau 10s
-      );
-
-      debugPrint('📍 Vị trí: ${position.latitude}, ${position.longitude}');
-
-      // ✅ Lấy địa chỉ từ tọa độ
-      String address = 'Không xác định';
-      try {
-        List<Placemark> placemarks = await placemarkFromCoordinates(
-          position.latitude,
-          position.longitude,
-        );
-
-        if (placemarks.isNotEmpty) {
-          Placemark place = placemarks[0];
-
-          // Format địa chỉ theo Việt Nam
-          List<String> addressParts = [];
-
-          if (place.street != null && place.street!.isNotEmpty) {
-            addressParts.add(place.street!);
-          }
-          if (place.subAdministrativeArea != null &&
-              place.subAdministrativeArea!.isNotEmpty) {
-            addressParts.add(place.subAdministrativeArea!);
-          }
-          if (place.administrativeArea != null &&
-              place.administrativeArea!.isNotEmpty) {
-            addressParts.add(place.administrativeArea!);
-          }
-          if (place.country != null && place.country!.isNotEmpty) {
-            addressParts.add(place.country!);
-          }
-
-          address = addressParts.join(', ');
-
-          if (address.isEmpty) {
-            address = 'Lat: ${position.latitude.toStringAsFixed(6)}, '
-                'Long: ${position.longitude.toStringAsFixed(6)}';
-          }
-        }
-      } catch (e) {
-        debugPrint('❌ Lỗi geocoding: $e');
-        address = 'Lat: ${position.latitude.toStringAsFixed(6)}, '
-            'Long: ${position.longitude.toStringAsFixed(6)}';
-      }
-
-      debugPrint('📍 Địa chỉ: $address');
-
-      setState(() {
-        _currentPosition = position;
-        _currentAddress = address;
-        _isLoading = false;
-      });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-                '✅ Đã lấy vị trí: ${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}'),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-    } on TimeoutException catch (_) {
-      setState(() {
-        _isLoading = false;
-      });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('❌ Timeout: Không thể lấy vị trí. Vui lòng thử lại.'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } catch (e) {
-      debugPrint('❌ Lỗi lấy vị trí: $e');
-
-      setState(() {
-        _isLoading = false;
-      });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('❌ Lỗi: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+    if (!locationStatus.isGranted) {
+      await Permission.location.request();
     }
   }
 
@@ -257,7 +71,11 @@ class _FloodReportPageState extends State<FloodReportPage> {
       if (image != null) {
         setState(() {
           _selectedImage = File(image.path);
+          _uploadedImageUrl = null;
         });
+
+        // Tự động upload
+        await _uploadImage();
       }
     } catch (e) {
       if (mounted) {
@@ -271,14 +89,143 @@ class _FloodReportPageState extends State<FloodReportPage> {
     }
   }
 
+  // 📤 Upload ảnh lên server
+  Future<void> _uploadImage() async {
+    if (_selectedImage == null) return;
+
+    setState(() {
+      _isUploading = true;
+    });
+
+    try {
+      final result = await UploadService.uploadImage(_selectedImage!);
+
+      if (result['success']) {
+        setState(() {
+          _uploadedImageUrl = result['url'];
+          _isUploading = false;
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('✅ Upload ảnh thành công'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      } else {
+        setState(() {
+          _isUploading = false;
+          _selectedImage = null;
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('❌ ${result['message']}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      setState(() {
+        _isUploading = false;
+        _selectedImage = null;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Lỗi upload: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // 📍 Lấy vị trí hiện tại
+  Future<void> _getCurrentLocation() async {
+    setState(() {
+      _isGettingLocation = true;
+    });
+
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        throw 'Dịch vụ vị trí chưa được bật';
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          throw 'Quyền truy cập vị trí bị từ chối';
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        throw 'Quyền truy cập vị trí bị từ chối vĩnh viễn';
+      }
+
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      List<Placemark> placemarks = await placemarkFromCoordinates(
+        position.latitude,
+        position.longitude,
+      );
+
+      String address = 'Không xác định';
+      if (placemarks.isNotEmpty) {
+        Placemark place = placemarks[0];
+        address =
+            '${place.street}, ${place.subAdministrativeArea}, ${place.administrativeArea}';
+      }
+
+      setState(() {
+        _currentPosition = position;
+        _currentAddress = address;
+        _isGettingLocation = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Đã lấy vị trí hiện tại'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _isGettingLocation = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Lỗi lấy vị trí: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   // 📤 Gửi báo cáo
   Future<void> _submitReport() async {
     if (!_formKey.currentState!.validate()) return;
 
-    if (_selectedImage == null) {
+    if (_uploadedImageUrl == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('⚠️ Vui lòng chọn ảnh'),
+          content: Text('⚠️ Vui lòng chọn và upload ảnh'),
           backgroundColor: Colors.orange,
         ),
       );
@@ -300,17 +247,13 @@ class _FloodReportPageState extends State<FloodReportPage> {
     });
 
     try {
-      // TODO: Upload ảnh lên server/cloud storage
-      String imageUrl =
-          'https://example.com/flood-images/${DateTime.now().millisecondsSinceEpoch}.jpg';
-
       final result = await FloodReportService.createFloodReport(
         title: _titleController.text.trim(),
         description: _descriptionController.text.trim(),
         latitude: _currentPosition!.latitude,
         longitude: _currentPosition!.longitude,
         address: _currentAddress ?? 'Không xác định',
-        imageUrl: imageUrl,
+        imageUrl: _uploadedImageUrl!,
         waterLevel: _waterLevel,
         userId: widget.user.id,
       );
@@ -369,13 +312,14 @@ class _FloodReportPageState extends State<FloodReportPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // 📸 Chọn ảnh
+                    // 📸 PHẦN ẢNH
                     const Text(
-                      'Ảnh hiện trường',
+                      'Ảnh hiện trường *',
                       style:
                           TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 12),
+
                     if (_selectedImage != null)
                       Stack(
                         children: [
@@ -388,19 +332,71 @@ class _FloodReportPageState extends State<FloodReportPage> {
                               fit: BoxFit.cover,
                             ),
                           ),
-                          Positioned(
-                            top: 8,
-                            right: 8,
-                            child: IconButton(
-                              icon:
-                                  const Icon(Icons.close, color: Colors.white),
-                              onPressed: () =>
-                                  setState(() => _selectedImage = null),
-                              style: IconButton.styleFrom(
-                                backgroundColor: Colors.black54,
+
+                          // Overlay upload
+                          if (_isUploading)
+                            Positioned.fill(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.black54,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Center(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      CircularProgressIndicator(
+                                          color: Colors.white),
+                                      SizedBox(height: 12),
+                                      Text(
+                                        'Đang upload...',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
+
+                          // Check icon
+                          if (_uploadedImageUrl != null && !_isUploading)
+                            Positioned(
+                              top: 8,
+                              left: 8,
+                              child: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: const BoxDecoration(
+                                  color: Colors.green,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.check,
+                                    color: Colors.white, size: 24),
+                              ),
+                            ),
+
+                          // Nút xóa
+                          if (!_isUploading)
+                            Positioned(
+                              top: 8,
+                              right: 8,
+                              child: IconButton(
+                                icon: const Icon(Icons.close,
+                                    color: Colors.white),
+                                onPressed: () {
+                                  setState(() {
+                                    _selectedImage = null;
+                                    _uploadedImageUrl = null;
+                                  });
+                                },
+                                style: IconButton.styleFrom(
+                                  backgroundColor: Colors.black54,
+                                ),
+                              ),
+                            ),
                         ],
                       )
                     else
@@ -417,19 +413,21 @@ class _FloodReportPageState extends State<FloodReportPage> {
                             Icon(Icons.add_photo_alternate,
                                 size: 64, color: Colors.grey.shade400),
                             const SizedBox(height: 8),
-                            Text(
-                              'Chưa chọn ảnh',
-                              style: TextStyle(color: Colors.grey.shade600),
-                            ),
+                            Text('Chưa chọn ảnh',
+                                style: TextStyle(color: Colors.grey.shade600)),
                           ],
                         ),
                       ),
+
                     const SizedBox(height: 12),
+
                     Row(
                       children: [
                         Expanded(
                           child: OutlinedButton.icon(
-                            onPressed: () => _pickImage(ImageSource.camera),
+                            onPressed: _isUploading
+                                ? null
+                                : () => _pickImage(ImageSource.camera),
                             icon: const Icon(Icons.camera_alt),
                             label: const Text('Chụp ảnh'),
                           ),
@@ -437,7 +435,9 @@ class _FloodReportPageState extends State<FloodReportPage> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: OutlinedButton.icon(
-                            onPressed: () => _pickImage(ImageSource.gallery),
+                            onPressed: _isUploading
+                                ? null
+                                : () => _pickImage(ImageSource.gallery),
                             icon: const Icon(Icons.photo_library),
                             label: const Text('Thư viện'),
                           ),
@@ -445,62 +445,27 @@ class _FloodReportPageState extends State<FloodReportPage> {
                       ],
                     ),
 
-                    const SizedBox(height: 24),
-
-                    // 📍 Vị trí
-                    const Text(
-                      'Vị trí',
-                      style:
-                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton.icon(
-                        onPressed: _getCurrentLocation,
-                        icon: const Icon(Icons.my_location),
-                        label: const Text('Lấy vị trí hiện tại'),
-                        style: FilledButton.styleFrom(
-                          minimumSize: const Size(double.infinity, 48),
-                        ),
-                      ),
-                    ),
-
-                    if (_currentPosition != null) ...[
-                      const SizedBox(height: 12),
+                    if (_uploadedImageUrl != null) ...[
+                      const SizedBox(height: 8),
                       Container(
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
                           color: Colors.green.shade50,
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(color: Colors.green.shade200),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        child: Row(
                           children: [
-                            Row(
-                              children: [
-                                Icon(Icons.check_circle,
-                                    color: Colors.green.shade700, size: 20),
-                                const SizedBox(width: 8),
-                                const Text(
-                                  'Đã có vị trí',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Tọa độ: ${_currentPosition!.latitude.toStringAsFixed(6)}, ${_currentPosition!.longitude.toStringAsFixed(6)}',
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                            if (_currentAddress != null) ...[
-                              const SizedBox(height: 4),
-                              Text(
-                                'Địa chỉ: $_currentAddress',
+                            const Icon(Icons.check_circle,
+                                color: Colors.green, size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Đã upload: ${_uploadedImageUrl!.split('/').last}',
                                 style: const TextStyle(fontSize: 12),
+                                overflow: TextOverflow.ellipsis,
                               ),
-                            ],
+                            ),
                           ],
                         ),
                       ),
@@ -508,17 +473,100 @@ class _FloodReportPageState extends State<FloodReportPage> {
 
                     const SizedBox(height: 24),
 
-                    // 📝 Tiêu đề
+                    // 📍 VỊ TRÍ
+                    const Text(
+                      'Vị trí *',
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 12),
+
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: _currentPosition != null
+                            ? Colors.blue.shade50
+                            : Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: _currentPosition != null
+                              ? Colors.blue.shade200
+                              : Colors.grey.shade300,
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (_currentPosition != null) ...[
+                            Row(
+                              children: [
+                                Icon(Icons.location_on,
+                                    color: Colors.blue.shade700, size: 20),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    _currentAddress ?? 'Không xác định',
+                                    style: const TextStyle(fontSize: 14),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Lat: ${_currentPosition!.latitude.toStringAsFixed(6)}, '
+                              'Lon: ${_currentPosition!.longitude.toStringAsFixed(6)}',
+                              style: TextStyle(
+                                  fontSize: 12, color: Colors.grey.shade700),
+                            ),
+                          ] else
+                            const Text(
+                              'Chưa lấy vị trí',
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed:
+                            _isGettingLocation ? null : _getCurrentLocation,
+                        icon: _isGettingLocation
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2, color: Colors.white),
+                              )
+                            : const Icon(Icons.my_location),
+                        label: Text(_isGettingLocation
+                            ? 'Đang lấy vị trí...'
+                            : 'Lấy vị trí hiện tại'),
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // 📝 TIÊU ĐỀ
+                    const Text(
+                      'Tiêu đề *',
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
                     TextFormField(
                       controller: _titleController,
                       decoration: InputDecoration(
-                        labelText: 'Tiêu đề *',
-                        hintText: 'VD: Ngập nặng đường Trần Phú',
+                        hintText: 'VD: Ngập nặng đường Lê Lợi',
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                         prefixIcon: const Icon(Icons.title),
                       ),
+                      maxLength: 100,
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
                           return 'Vui lòng nhập tiêu đề';
@@ -529,49 +577,65 @@ class _FloodReportPageState extends State<FloodReportPage> {
 
                     const SizedBox(height: 16),
 
-                    // 📝 Mô tả
+                    // 📄 MÔ TẢ
+                    const Text(
+                      'Mô tả chi tiết *',
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
                     TextFormField(
                       controller: _descriptionController,
-                      maxLines: 4,
                       decoration: InputDecoration(
-                        labelText: 'Mô tả chi tiết',
-                        hintText: 'Mô tả tình trạng ngập, diện tích...',
+                        hintText:
+                            'Mô tả tình trạng ngập, diện tích, thời gian...',
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        prefixIcon: const Icon(Icons.description),
                       ),
+                      maxLines: 4,
+                      maxLength: 500,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Vui lòng nhập mô tả';
+                        }
+                        return null;
+                      },
                     ),
 
                     const SizedBox(height: 16),
 
-                    // 💧 Mức nước
+                    // 💧 MỨC ĐỘ NGẬP
                     const Text(
-                      'Mức độ ngập',
+                      'Mức độ ngập *',
                       style:
                           TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 12),
+
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children: [
-                        _buildWaterLevelChip('Low', 'Thấp', Colors.yellow),
                         _buildWaterLevelChip(
-                            'Medium', 'Trung bình', Colors.orange),
-                        _buildWaterLevelChip('High', 'Cao', Colors.red),
+                            'Low', 'Thấp (< 15cm)', Colors.yellow.shade700),
                         _buildWaterLevelChip(
-                            'Critical', 'Nguy hiểm', Colors.purple),
+                            'Medium', 'Trung bình (15-30cm)', Colors.orange),
+                        _buildWaterLevelChip(
+                            'High', 'Cao (30-50cm)', Colors.red),
+                        _buildWaterLevelChip(
+                            'Critical', 'Nguy hiểm (> 50cm)', Colors.purple),
                       ],
                     ),
 
                     const SizedBox(height: 32),
 
-                    // 📤 Nút gửi
+                    // 📤 NÚT GỬI
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton(
-                        onPressed: _isLoading ? null : _submitReport,
+                        onPressed:
+                            (_isLoading || _isUploading) ? null : _submitReport,
                         style: FilledButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
@@ -590,9 +654,7 @@ class _FloodReportPageState extends State<FloodReportPage> {
                             : const Text(
                                 'Gửi báo cáo',
                                 style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                                    fontSize: 16, fontWeight: FontWeight.bold),
                               ),
                       ),
                     ),
@@ -606,23 +668,23 @@ class _FloodReportPageState extends State<FloodReportPage> {
   Widget _buildWaterLevelChip(String value, String label, Color color) {
     final isSelected = _waterLevel == value;
     return FilterChip(
-      label: Text(label),
       selected: isSelected,
+      label: Text(label),
       onSelected: (selected) {
         setState(() {
           _waterLevel = value;
         });
       },
-      backgroundColor: color.withOpacity(0.1),
-      selectedColor: color.withOpacity(0.3),
+      backgroundColor: Colors.grey.shade100,
+      selectedColor: color.withOpacity(0.2),
       checkmarkColor: color,
-      labelStyle: TextStyle(
-        color: Color.lerp(color, Colors.black, 0.7)!,
-        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-      ),
       side: BorderSide(
-        color: isSelected ? color : color.withOpacity(0.3),
+        color: isSelected ? color : Colors.grey.shade300,
         width: isSelected ? 2 : 1,
+      ),
+      labelStyle: TextStyle(
+        color: isSelected ? color : Colors.grey.shade700,
+        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
       ),
     );
   }
