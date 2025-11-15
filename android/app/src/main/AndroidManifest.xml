@@ -10,7 +10,8 @@
     <application
         android:label="smart_city"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true">
         
         <!-- ✅ Thêm Google Maps API key (nếu dùng Google Maps) -->
         <meta-data

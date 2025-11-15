@@ -12,7 +12,7 @@ class FloodReportModel {
   final String status;
   final String? adminNote;
   final int userId;
-  final String? userName; // ✅ Thêm field này
+  final String? userName;
   final DateTime createdAt;
   final DateTime? approvedAt;
 
