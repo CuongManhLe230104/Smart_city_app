@@ -20,7 +20,7 @@ class MyApp extends StatelessWidget {
 
   Future<UserModel?> _getSavedUser() async {
     final prefs = await SharedPreferences.getInstance();
-    final userId = prefs.getString('user_id');
+    final userId = prefs.getInt('user_id');
     final username = prefs.getString('user_username');
     final email = prefs.getString('user_email');
 

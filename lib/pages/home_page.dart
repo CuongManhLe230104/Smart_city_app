@@ -10,6 +10,9 @@ import '../models/event_banner_model.dart';
 import '../auth/screens/login_screen.dart';
 import '../pages/public_feedback_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'flood_report_page.dart';
+import 'flood_map_page.dart';
+import 'all_flood_reports_page.dart'; // ✅ Thêm import
 
 class HomePage extends StatefulWidget {
   final UserModel user;
@@ -304,6 +307,68 @@ class _HomeTabState extends State<HomeTab> {
     );
   }
 
+  // ✅ Thêm method mới
+  void _showFloodReportBottomSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Báo cáo ngập lụt',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 20),
+
+            // ✅ Xem tất cả báo cáo
+            ListTile(
+              leading: const Icon(Icons.list, color: Colors.blue, size: 32),
+              title: const Text('Xem tất cả báo cáo'),
+              subtitle: const Text('Xem báo cáo từ mọi người'),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+              onTap: () {
+                Navigator.pop(context);
+                _navigateTo(context, const AllFloodReportsPage());
+              },
+            ),
+            const Divider(),
+
+            // Báo cáo mới
+            ListTile(
+              leading: const Icon(Icons.report, color: Colors.red, size: 32),
+              title: const Text('Báo cáo ngập lụt'),
+              subtitle: const Text('Gửi báo cáo mới về điểm ngập'),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+              onTap: () {
+                Navigator.pop(context);
+                _navigateTo(context, FloodReportPage(user: widget.user));
+              },
+            ),
+            const Divider(),
+
+            // Xem bản đồ
+            ListTile(
+              leading: const Icon(Icons.map, color: Colors.green, size: 32),
+              title: const Text('Xem bản đồ ngập'),
+              subtitle: const Text('Xem điểm ngập trên bản đồ'),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+              onTap: () {
+                Navigator.pop(context);
+                _navigateTo(context, const FloodMapPage());
+              },
+            ),
+            const SizedBox(height: 10),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // --- 3. LẤY VÀ ĐỊNH DẠNG NGÀY HIỆN TẠI ---
@@ -357,10 +422,7 @@ class _HomeTabState extends State<HomeTab> {
       _FunctionItem(
         title: 'Mức mưa, ngập',
         icon: Icons.water_drop_outlined,
-        onTap: () => _navigateTo(
-          context,
-          const PlaceholderPage(title: 'Mức mưa, ngập nước'),
-        ),
+        onTap: () => _showFloodReportBottomSheet(context), // ✅ Sửa dòng này
       ),
       _FunctionItem(
         title: 'Ưu đãi',

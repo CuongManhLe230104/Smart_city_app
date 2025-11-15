@@ -33,7 +33,7 @@ class _MyFeedbacksScreenState extends State<MyFeedbacksScreen> {
 
     try {
       final result = await FeedbackService.getMyFeedbacks(
-        int.parse(widget.user.id),
+        widget.user.id,
       );
 
       if (result['success']) {

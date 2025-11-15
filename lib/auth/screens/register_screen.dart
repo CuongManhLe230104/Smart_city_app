@@ -58,7 +58,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
         // Tạo UserModel
         final userData = result['data']['user'];
         final userModel = UserModel(
-          id: userData['id'].toString(),
+          id: userData['id'] is String
+              ? int.parse(userData['id'])
+              : userData['id'], // ✅ Chuyển sang int
           username: userData['fullName'] ?? userData['email'].split('@')[0],
           email: userData['email'],
         );
