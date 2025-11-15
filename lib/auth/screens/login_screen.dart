@@ -47,7 +47,9 @@ class _LoginScreenState extends State<LoginScreen> {
         // Đăng nhập thành công
         final userData = result['data']['user'];
         final userModel = UserModel(
-          id: userData['id'].toString(),
+          id: userData['id'] is String
+              ? int.parse(userData['id'])
+              : userData['id'],
           username: userData['fullName'] ?? userData['email'].split('@')[0],
           email: userData['email'],
         );

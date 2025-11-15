@@ -56,7 +56,7 @@ class _CreateFeedbackScreenState extends State<CreateFeedbackScreen> {
         title: _titleController.text.trim(),
         description: _descriptionController.text.trim(),
         category: _selectedCategory,
-        userId: int.parse(widget.user.id),
+        userId: widget.user.id,
         location: _locationController.text.trim().isEmpty
             ? null
             : _locationController.text.trim(),

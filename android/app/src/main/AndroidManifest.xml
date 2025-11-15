@@ -1,15 +1,22 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.example.smart_city">
 
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-
+    <!-- ✅ Thêm các permissions này VÀO TRƯỚC thẻ <application> -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    
     <application
+        android:label="smart_city"
         android:name="${applicationName}"
-        android:label="Vũng Tàu Smart City"
-        android:icon="@mipmap/ic_launcher"
-        android:enableOnBackInvokedCallback="true">
-
+        android:icon="@mipmap/ic_launcher">
+        
+        <!-- ✅ Thêm Google Maps API key (nếu dùng Google Maps) -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="YOUR_GOOGLE_MAPS_API_KEY_HERE"/>
+        
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -20,17 +27,26 @@
             android:windowSoftInputMode="adjustResize">
             
             <meta-data
-                android:name="io.flutter.embedding.android.NormalTheme"
-                android:resource="@style/NormalTheme" />
+              android:name="io.flutter.embedding.android.NormalTheme"
+              android:resource="@style/NormalTheme"
+              />
             
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
-
+        
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
     </application>
+    
+    <!-- ✅ Thêm queries nếu cần mở Google Maps -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="geo" />
+        </intent>
+    </queries>
 </manifest>
