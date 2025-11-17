@@ -1,20 +1,33 @@
 import 'package:flutter/material.dart';
 import '../services/floodreport_service.dart';
 import '../models/flood_report_model.dart';
+import '../models/user_model.dart'; // ✅ THÊM import
+import 'my_flood_report_page.dart'; // ✅ THÊM import
 import 'package:intl/intl.dart';
 
 class AllFloodReportsPage extends StatefulWidget {
-  const AllFloodReportsPage({super.key}); // ✅ Thêm const ở đây
+  final UserModel user; // ✅ THÊM property user
+
+  const AllFloodReportsPage(
+      {super.key, required this.user}); // ✅ SỬA constructor
 
   @override
   State<AllFloodReportsPage> createState() => _AllFloodReportsPageState();
 }
 
 class _AllFloodReportsPageState extends State<AllFloodReportsPage> {
+  List<FloodReportModel> _reports = [];
   bool _isLoading = true;
   String _errorMessage = '';
-  List<FloodReportModel> _reports = [];
-  String _selectedFilter = 'all';
+  String? _selectedStatus; // ✅ THÊM biến này nếu chưa có
+
+  final Map<String, String> _statuses = {
+    // ✅ THÊM map này nếu chưa có
+    'Tất cả': '',
+    'Chờ duyệt': 'Pending',
+    'Đã duyệt': 'Approved',
+    'Từ chối': 'Rejected',
+  };
 
   @override
   void initState() {
@@ -29,10 +42,7 @@ class _AllFloodReportsPageState extends State<AllFloodReportsPage> {
     });
 
     try {
-      // ✅ Thay đổi: Lấy TẤT CẢ báo cáo thay vì chỉ approved
-      final result = await FloodReportService.getAllReports(
-        status: _selectedFilter == 'all' ? null : _selectedFilter,
-      );
+      final result = await FloodReportService.getAllReports();
 
       if (result['success']) {
         setState(() {
@@ -43,7 +53,7 @@ class _AllFloodReportsPageState extends State<AllFloodReportsPage> {
         });
       } else {
         setState(() {
-          _errorMessage = result['message'] ?? 'Không thể tải dữ liệu';
+          _errorMessage = result['message'];
           _isLoading = false;
         });
       }
@@ -55,35 +65,95 @@ class _AllFloodReportsPageState extends State<AllFloodReportsPage> {
     }
   }
 
-  // ✅ Sửa _filteredReports để load lại khi filter thay đổi
+  // ✅ THÊM method này
+  void _showFilterDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Lọc theo trạng thái'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: _statuses.keys.map((status) {
+            final isSelected = _selectedStatus == _statuses[status] ||
+                (_selectedStatus == null && status == 'Tất cả');
+            return RadioListTile<String>(
+              title: Text(status),
+              value: _statuses[status]!,
+              groupValue: _selectedStatus ?? '',
+              selected: isSelected,
+              onChanged: (value) {
+                setState(() {
+                  _selectedStatus = value == '' ? null : value;
+                });
+                Navigator.pop(context);
+                _loadReports();
+              },
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  // ✅ THÊM method này
+  void _navigateToMyReports() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => MyFloodReportsPage(user: widget.user),
+      ),
+    ).then((value) {
+      if (value == true) {
+        _loadReports();
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Báo cáo ngập lụt'),
-        elevation: 1,
+        elevation: 0,
+        actions: [
+          // ✅ Nút "Báo cáo của tôi"
+          IconButton(
+            icon: const Icon(Icons.person),
+            tooltip: 'Báo cáo của tôi',
+            onPressed: _navigateToMyReports, // ✅ SỬA: Dùng method đã tạo
+          ),
+          IconButton(
+            icon: const Icon(Icons.filter_list),
+            tooltip: 'Lọc',
+            onPressed: _showFilterDialog, // ✅ SỬA: Dùng method đã tạo
+          ),
+        ],
       ),
       body: Column(
         children: [
-          // Filter chips
+          // Info banner
           Container(
-            padding: const EdgeInsets.all(16),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _buildFilterChip('all', 'Tất cả', Icons.list),
-                  const SizedBox(width: 8),
-                  _buildFilterChip('Approved', 'Đã duyệt',
-                      Icons.check_circle), // ✅ Capitalize
-                  const SizedBox(width: 8),
-                  _buildFilterChip(
-                      'Pending', 'Chờ duyệt', Icons.schedule), // ✅ Capitalize
-                  const SizedBox(width: 8),
-                  _buildFilterChip(
-                      'Rejected', 'Từ chối', Icons.cancel), // ✅ Capitalize
-                ],
-              ),
+            padding: const EdgeInsets.all(12),
+            margin: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.blue.shade200),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info, color: Colors.blue.shade700),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Đang xem báo cáo của cộng đồng. Nhấn biểu tượng người để xem báo cáo của bạn.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.blue.shade900,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
 
@@ -96,16 +166,12 @@ class _AllFloodReportsPageState extends State<AllFloodReportsPage> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.error_outline,
+                            Icon(Icons.error,
                                 size: 64, color: Colors.red.shade300),
                             const SizedBox(height: 16),
-                            Text(
-                              _errorMessage,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(color: Colors.grey),
-                            ),
+                            Text(_errorMessage),
                             const SizedBox(height: 16),
-                            ElevatedButton.icon(
+                            FilledButton.icon(
                               onPressed: _loadReports,
                               icon: const Icon(Icons.refresh),
                               label: const Text('Thử lại'),
@@ -113,32 +179,27 @@ class _AllFloodReportsPageState extends State<AllFloodReportsPage> {
                           ],
                         ),
                       )
-                    : _reports.isEmpty // ✅ Thay _filteredReports thành _reports
+                    : _reports.isEmpty
                         ? Center(
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.water_drop_outlined,
-                                    size: 64, color: Colors.grey.shade300),
+                                Icon(Icons.inbox,
+                                    size: 80, color: Colors.grey.shade300),
                                 const SizedBox(height: 16),
-                                const Text(
-                                  'Chưa có báo cáo nào',
-                                  style: TextStyle(
-                                      fontSize: 16, color: Colors.grey),
-                                ),
+                                const Text('Chưa có báo cáo nào'),
                               ],
                             ),
                           )
                         : RefreshIndicator(
                             onRefresh: _loadReports,
                             child: ListView.builder(
-                              padding: const EdgeInsets.all(16),
-                              itemCount:
-                                  _reports.length, // ✅ Thay _filteredReports
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 16),
+                              itemCount: _reports.length,
                               itemBuilder: (context, index) {
-                                final report =
-                                    _reports[index]; // ✅ Thay _filteredReports
-                                return _buildReportCard(report);
+                                final report = _reports[index];
+                                return _ReportCard(report: report);
                               },
                             ),
                           ),
@@ -147,37 +208,21 @@ class _AllFloodReportsPageState extends State<AllFloodReportsPage> {
       ),
     );
   }
+}
 
-  Widget _buildFilterChip(String value, String label, IconData icon) {
-    final isSelected = _selectedFilter == value;
-    return FilterChip(
-      label: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 18),
-          const SizedBox(width: 4),
-          Text(label),
-        ],
-      ),
-      selected: isSelected,
-      onSelected: (selected) {
-        setState(() {
-          _selectedFilter = value;
-        });
-        _loadReports(); // ✅ Load lại data khi filter thay đổi
-      },
-      selectedColor: Colors.blue.shade100,
-      checkmarkColor: Colors.blue,
-    );
-  }
+class _ReportCard extends StatelessWidget {
+  final FloodReportModel report;
 
-  Widget _buildReportCard(FloodReportModel report) {
+  const _ReportCard({required this.report});
+
+  @override
+  Widget build(BuildContext context) {
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
-        onTap: () => _showReportDetails(report),
+        onTap: () => _showReportDetails(context, report),
         borderRadius: BorderRadius.circular(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -350,7 +395,7 @@ class _AllFloodReportsPageState extends State<AllFloodReportsPage> {
     );
   }
 
-  void _showReportDetails(FloodReportModel report) {
+  void _showReportDetails(BuildContext context, FloodReportModel report) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
