@@ -30,7 +30,6 @@ class _FloodReportPageState extends State<FloodReportPage> {
   bool _isLoading = false;
   bool _isUploading = false;
   bool _isGettingLocation = false;
-  String _waterLevel = 'Low';
 
   @override
   void initState() {
@@ -254,7 +253,7 @@ class _FloodReportPageState extends State<FloodReportPage> {
         longitude: _currentPosition!.longitude,
         address: _currentAddress ?? 'Không xác định',
         imageUrl: _uploadedImageUrl!,
-        waterLevel: _waterLevel,
+        waterLevel: 'Unknown', // ✅ THAY ĐỔI: Luôn gửi "Unknown"
         userId: widget.user.id,
       );
 
@@ -266,8 +265,10 @@ class _FloodReportPageState extends State<FloodReportPage> {
         if (result['success']) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('✅ Gửi báo cáo thành công! Chờ admin duyệt.'),
+              content: Text(
+                  '✅ Gửi báo cáo thành công! Chờ admin duyệt và đánh giá mức độ ngập.'),
               backgroundColor: Colors.green,
+              duration: Duration(seconds: 3),
             ),
           );
           Navigator.pop(context, true);
@@ -603,34 +604,36 @@ class _FloodReportPageState extends State<FloodReportPage> {
                       },
                     ),
 
-                    const SizedBox(height: 16),
+                    // ❌ XÓA TOÀN BỘ: Phần "Mức độ ngập" (FilterChip)
 
-                    // 💧 MỨC ĐỘ NGẬP
-                    const Text(
-                      'Mức độ ngập *',
-                      style:
-                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 12),
-
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        _buildWaterLevelChip(
-                            'Low', 'Thấp (< 15cm)', Colors.yellow.shade700),
-                        _buildWaterLevelChip(
-                            'Medium', 'Trung bình (15-30cm)', Colors.orange),
-                        _buildWaterLevelChip(
-                            'High', 'Cao (30-50cm)', Colors.red),
-                        _buildWaterLevelChip(
-                            'Critical', 'Nguy hiểm (> 50cm)', Colors.purple),
-                      ],
+                    // ✅ THÊM: Thông báo cho user
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.blue.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.info_outline, color: Colors.blue.shade700),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Mức độ ngập lụt sẽ được admin đánh giá sau khi duyệt báo cáo của bạn.',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.blue.shade900,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
 
                     const SizedBox(height: 32),
 
-                    // 📤 NÚT GỬI
+                    // 📤 NÚT GỬI (giữ nguyên)
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton(
@@ -662,30 +665,6 @@ class _FloodReportPageState extends State<FloodReportPage> {
                 ),
               ),
             ),
-    );
-  }
-
-  Widget _buildWaterLevelChip(String value, String label, Color color) {
-    final isSelected = _waterLevel == value;
-    return FilterChip(
-      selected: isSelected,
-      label: Text(label),
-      onSelected: (selected) {
-        setState(() {
-          _waterLevel = value;
-        });
-      },
-      backgroundColor: Colors.grey.shade100,
-      selectedColor: color.withOpacity(0.2),
-      checkmarkColor: color,
-      side: BorderSide(
-        color: isSelected ? color : Colors.grey.shade300,
-        width: isSelected ? 2 : 1,
-      ),
-      labelStyle: TextStyle(
-        color: isSelected ? color : Colors.grey.shade700,
-        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-      ),
     );
   }
 }

@@ -12,7 +12,7 @@ import '../pages/public_feedback_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'flood_report_page.dart';
 import 'flood_map_page.dart';
-import 'all_flood_reports_page.dart'; // ✅ Thêm import
+import 'all_flood_reports_page.dart';
 
 class HomePage extends StatefulWidget {
   final UserModel user;
@@ -30,8 +30,11 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _pages = [
-      HomeTab(user: widget.user),
-      SettingsPage(user: widget.user), // ⭐ Thêm settings page
+      HomeTab(
+        user: widget.user,
+        onLogout: _logout, // ✅ Truyền callback xuống
+      ),
+      SettingsPage(user: widget.user),
     ];
   }
 
@@ -39,6 +42,7 @@ class _HomePageState extends State<HomePage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text('Xác nhận'),
         content: const Text('Bạn có chắc muốn đăng xuất không?'),
         actions: [
@@ -46,7 +50,7 @@ class _HomePageState extends State<HomePage> {
             onPressed: () => Navigator.pop(context, false),
             child: const Text('Hủy'),
           ),
-          TextButton(
+          FilledButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('Đăng xuất'),
           ),
@@ -55,7 +59,6 @@ class _HomePageState extends State<HomePage> {
     );
 
     if (confirmed == true) {
-      // Xóa token và user data
       final prefs = await SharedPreferences.getInstance();
       await prefs.clear();
 
@@ -72,80 +75,100 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: _currentIndex == 0 // ⭐ Chỉ hiện AppBar ở Home tab
-          ? AppBar(
-              title: const Text('Trang chủ'),
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.logout),
-                  tooltip: 'Đăng xuất',
-                  onPressed: _logout,
-                ),
-              ],
-            )
-          : null, // Settings Page có AppBar riêng
       body: IndexedStack(index: _currentIndex, children: _pages),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (i) => setState(() => _currentIndex = i),
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Trang chủ',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.settings),
-            label: 'Cài đặt',
-          ),
-        ],
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, -3),
+            ),
+          ],
+        ),
+        child: BottomNavigationBar(
+          currentIndex: _currentIndex,
+          onTap: (i) => setState(() => _currentIndex = i),
+          elevation: 0,
+          selectedItemColor: Theme.of(context).primaryColor,
+          unselectedItemColor: Colors.grey,
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.home_rounded),
+              label: 'Trang chủ',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.settings_rounded),
+              label: 'Cài đặt',
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-// Lớp helper nhỏ cho các item trong grid
 class _FunctionItem {
   final String title;
   final IconData icon;
+  final Color color;
   final VoidCallback onTap;
 
-  _FunctionItem({required this.title, required this.icon, required this.onTap});
+  _FunctionItem({
+    required this.title,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
 }
 
-// --- BƯỚC 1: THÊM LẠI LỚP STATFULWIDGET BỊ THIẾU ---
 class HomeTab extends StatefulWidget {
   final UserModel user;
-  const HomeTab({Key? key, required this.user}) : super(key: key);
+  final VoidCallback onLogout;
+
+  const HomeTab({
+    Key? key,
+    required this.user,
+    required this.onLogout,
+  }) : super(key: key);
 
   @override
   State<HomeTab> createState() => _HomeTabState();
 }
-// --------------------------------------------------
 
-// Widget mới chứa toàn bộ nội dung của Tab Trang chủ
-// (Đây là State, code của bạn đã có phần này)
-class _HomeTabState extends State<HomeTab> {
-  // 1. Tạo biến state để lưu kết quả thời tiết
-  String _weatherResult = 'Đang tải thời tiết...';
+class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
+  String _weatherResult = 'Đang tải...';
   bool _isLoadingWeather = true;
-
-  // 2. Tạo instance của ApiService
   final ApiService _apiService = ApiService();
   late Future<List<EventBannerModel>> _bannersFuture;
+  int _currentBannerIndex = 0;
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
 
   @override
   void initState() {
     super.initState();
-    // 3. Gọi API khi widget được tải
     _fetchWeather();
     _bannersFuture = _apiService.fetchEventBanners();
+
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    );
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeIn),
+    );
+    _animationController.forward();
   }
 
-  // 4. Hàm gọi API
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
   Future<void> _fetchWeather() async {
-    // Không cần setState _isLoading = true vì đã set ở giá trị khởi tạo
     final String result = await _apiService.fetchWeather();
-    // Cập nhật UI khi có kết quả
     if (mounted) {
       setState(() {
         _weatherResult = result;
@@ -154,395 +177,591 @@ class _HomeTabState extends State<HomeTab> {
     }
   }
 
-  // Helper điều hướng
   void _navigateTo(BuildContext context, Widget page) {
-    Navigator.push(context, MaterialPageRoute(builder: (context) => page));
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) => page,
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+      ),
+    );
+  }
+
+  void _showFloodReportBottomSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Báo cáo ngập lụt',
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 24),
+            _buildFloodOption(
+              icon: Icons.list_rounded,
+              title: 'Xem tất cả báo cáo',
+              subtitle: 'Xem báo cáo từ cộng đồng',
+              color: Colors.blue,
+              onTap: () {
+                Navigator.pop(context);
+                _navigateTo(context, AllFloodReportsPage(user: widget.user));
+              },
+            ),
+            const SizedBox(height: 12),
+            _buildFloodOption(
+              icon: Icons.report_rounded,
+              title: 'Báo cáo ngập lụt',
+              subtitle: 'Gửi báo cáo mới về điểm ngập',
+              color: Colors.red,
+              onTap: () {
+                Navigator.pop(context);
+                _navigateTo(context, FloodReportPage(user: widget.user));
+              },
+            ),
+            const SizedBox(height: 12),
+            _buildFloodOption(
+              icon: Icons.map_rounded,
+              title: 'Xem bản đồ ngập',
+              subtitle: 'Xem điểm ngập trên bản đồ',
+              color: Colors.green,
+              onTap: () {
+                Navigator.pop(context);
+                _navigateTo(context, const FloodMapPage());
+              },
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFloodOption({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withOpacity(0.3)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: Colors.white, size: 28),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.arrow_forward_ios, size: 16, color: color),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildBannerSection() {
     return SizedBox(
-      height: 150, // Giữ chiều cao 150
+      height: 180,
       child: FutureBuilder<List<EventBannerModel>>(
         future: _bannersFuture,
         builder: (context, snapshot) {
-          // A. Đang tải
           if (snapshot.connectionState == ConnectionState.waiting) {
-            // Hiển thị khung chờ
-            return Card(
-              clipBehavior: Clip.antiAlias,
-              elevation: 3,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Container(
-                color: Colors.blueGrey.shade100,
-                child: const Center(child: CircularProgressIndicator()),
-              ),
-            );
+            return _buildShimmerBanner();
           }
 
-          // B. Bị lỗi
-          if (snapshot.hasError) {
-            return Card(
-              clipBehavior: Clip.antiAlias,
-              elevation: 3,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+          if (snapshot.hasError ||
+              !snapshot.hasData ||
+              snapshot.data!.isEmpty) {
+            return _buildEmptyBanner();
+          }
+
+          final banners = snapshot.data!;
+          return Stack(
+            children: [
+              PageView.builder(
+                itemCount: banners.length,
+                onPageChanged: (index) {
+                  setState(() => _currentBannerIndex = index);
+                },
+                itemBuilder: (context, index) {
+                  final banner = banners[index];
+                  return Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 8),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.15),
+                          blurRadius: 10,
+                          offset: const Offset(0, 5),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Image.network(
+                            banner.imageUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                color: Colors.grey.shade300,
+                                child: const Icon(Icons.image_not_supported,
+                                    size: 64),
+                              );
+                            },
+                          ),
+                          Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.transparent,
+                                  Colors.black.withOpacity(0.7),
+                                ],
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            bottom: 20,
+                            left: 20,
+                            right: 20,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  banner.title,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                if (banner.description != null) ...[
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    banner.description!,
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 14,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
               ),
-              child: Container(
-                color: Colors.red.shade100,
-                child: Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: Text(
-                      'Lỗi tải sự kiện:\n${snapshot.error}',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.red.shade900),
+              Positioned(
+                bottom: 12,
+                left: 0,
+                right: 0,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(
+                    banners.length,
+                    (index) => AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      width: _currentBannerIndex == index ? 24 : 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: _currentBannerIndex == index
+                            ? Colors.white
+                            : Colors.white.withOpacity(0.5),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
                     ),
                   ),
                 ),
               ),
-            );
-          }
-
-          // C. Không có dữ liệu
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text('Không có sự kiện nào.'));
-          }
-
-          // D. Có dữ liệu -> Hiển thị PageView
-          final banners = snapshot.data!;
-          return PageView.builder(
-            itemCount: banners.length,
-            itemBuilder: (context, index) {
-              final banner = banners[index];
-              return Card(
-                clipBehavior: Clip.antiAlias,
-                elevation: 3,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                margin: const EdgeInsets.symmetric(
-                  horizontal: 4,
-                ), // Thêm khoảng cách
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    // --- Hình ảnh (Lấy từ URL) ---
-                    Image.network(
-                      banner.imageUrl,
-                      fit: BoxFit.cover,
-                      // Hiển thị loading/lỗi cho từng ảnh
-                      loadingBuilder: (context, child, progress) {
-                        if (progress == null) return child;
-                        return const Center(child: CircularProgressIndicator());
-                      },
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          color: Colors.grey.shade300,
-                          child: const Icon(
-                            Icons.image_not_supported,
-                            color: Colors.grey,
-                          ),
-                        );
-                      },
-                    ),
-                    // --- Lớp phủ (overlay) màu đen mờ ---
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            Colors.black.withOpacity(0.7),
-                            Colors.transparent,
-                            Colors.transparent,
-                          ],
-                          begin: Alignment.bottomCenter,
-                          end: Alignment.topCenter,
-                          stops: const [0.0, 0.5, 1.0],
-                        ),
-                      ),
-                    ),
-                    // --- Văn bản (Tiêu đề, Mô tả) ---
-                    Positioned(
-                      bottom: 16,
-                      left: 16,
-                      right: 16,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            banner.title,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              shadows: [
-                                Shadow(blurRadius: 3, color: Colors.black),
-                              ],
-                            ),
-                          ),
-                          if (banner.description != null)
-                            Text(
-                              banner.description!,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                shadows: [
-                                  Shadow(blurRadius: 3, color: Colors.black),
-                                ],
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
+            ],
           );
         },
       ),
     );
   }
 
-  // ✅ Thêm method mới
-  void _showFloodReportBottomSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+  Widget _buildShimmerBanner() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(20),
       ),
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Báo cáo ngập lụt',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 20),
+      child: const Center(child: CircularProgressIndicator()),
+    );
+  }
 
-            // ✅ Xem tất cả báo cáo
-            ListTile(
-              leading: const Icon(Icons.list, color: Colors.blue, size: 32),
-              title: const Text('Xem tất cả báo cáo'),
-              subtitle: const Text('Xem báo cáo từ mọi người'),
-              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-              onTap: () {
-                Navigator.pop(context);
-                _navigateTo(context, const AllFloodReportsPage());
-              },
-            ),
-            const Divider(),
-
-            // Báo cáo mới
-            ListTile(
-              leading: const Icon(Icons.report, color: Colors.red, size: 32),
-              title: const Text('Báo cáo ngập lụt'),
-              subtitle: const Text('Gửi báo cáo mới về điểm ngập'),
-              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-              onTap: () {
-                Navigator.pop(context);
-                _navigateTo(context, FloodReportPage(user: widget.user));
-              },
-            ),
-            const Divider(),
-
-            // Xem bản đồ
-            ListTile(
-              leading: const Icon(Icons.map, color: Colors.green, size: 32),
-              title: const Text('Xem bản đồ ngập'),
-              subtitle: const Text('Xem điểm ngập trên bản đồ'),
-              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-              onTap: () {
-                Navigator.pop(context);
-                _navigateTo(context, const FloodMapPage());
-              },
-            ),
-            const SizedBox(height: 10),
-          ],
-        ),
+  Widget _buildEmptyBanner() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: const Center(
+        child:
+            Text('Không có sự kiện nào', style: TextStyle(color: Colors.grey)),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    // --- 3. LẤY VÀ ĐỊNH DẠNG NGÀY HIỆN TẠI ---
     final now = DateTime.now();
-    // Định dạng ngày: vd 01/11/2025
     final day = now.day.toString().padLeft(2, '0');
     final month = now.month.toString().padLeft(2, '0');
     final year = now.year;
     final String formattedDate = "$day/$month/$year";
-    // ------------------------------------------
 
-    // --- BƯỚC 2: SỬA LẠI DANH SÁCH CHỨC NĂNG BỊ THIẾU ---
     final List<_FunctionItem> functionItems = [
       _FunctionItem(
         title: 'Bản đồ',
-        icon: Icons.map_outlined,
-        // SỬA: Trỏ đến trang Search
+        icon: Icons.map_rounded,
+        color: Colors.blue,
         onTap: () => _navigateTo(context, const MapTestPage()),
       ),
       _FunctionItem(
         title: 'Tuyến xe buýt',
-        icon: Icons.directions_bus,
-        // --- 2. SỬA LỖI Ở ĐÂY ---
-        onTap: () => _navigateTo(
-          context,
-          const BusRoutesPage(), // Trỏ đến trang xe buýt thật
-        ),
+        icon: Icons.directions_bus_rounded,
+        color: Colors.orange,
+        onTap: () => _navigateTo(context, const BusRoutesPage()),
       ),
       _FunctionItem(
-        title: 'Tìm kiếm địa điểm',
-        icon: Icons.search,
-        // SỬA: Trỏ đến trang Search
+        title: 'Tìm kiếm',
+        icon: Icons.search_rounded,
+        color: Colors.purple,
         onTap: () => _navigateTo(context, const SearchPage()),
       ),
       _FunctionItem(
-        title: 'Phản ánh góp ý',
-        icon: Icons.forum,
-        onTap: () => _navigateTo(
-          context,
-          PublicFeedbacksScreen(user: widget.user),
-        ),
+        title: 'Phản ánh',
+        icon: Icons.forum_rounded,
+        color: Colors.teal,
+        onTap: () =>
+            _navigateTo(context, PublicFeedbacksScreen(user: widget.user)),
       ),
       _FunctionItem(
-        title: 'Du lịch & Ẩm thực',
-        icon: Icons.restaurant_menu,
+        title: 'Du lịch',
+        icon: Icons.restaurant_menu_rounded,
+        color: Colors.pink,
         onTap: () => _navigateTo(
-          context,
-          const PlaceholderPage(title: 'Du lịch & Ẩm thực'),
-        ),
+            context, const PlaceholderPage(title: 'Du lịch & Ẩm thực')),
       ),
       _FunctionItem(
-        title: 'Mức mưa, ngập',
-        icon: Icons.water_drop_outlined,
-        onTap: () => _showFloodReportBottomSheet(context), // ✅ Sửa dòng này
+        title: 'Mức mưa',
+        icon: Icons.water_drop_rounded,
+        color: Colors.cyan,
+        onTap: () => _showFloodReportBottomSheet(context),
       ),
       _FunctionItem(
         title: 'Ưu đãi',
-        icon: Icons.percent,
+        icon: Icons.local_offer_rounded,
+        color: Colors.red,
         onTap: () =>
             _navigateTo(context, const PlaceholderPage(title: 'Ưu đãi')),
       ),
       _FunctionItem(
         title: 'Xem tất cả',
-        icon: Icons.grid_view,
+        icon: Icons.grid_view_rounded,
+        color: Colors.grey,
         onTap: () => _navigateTo(
-          context,
-          const PlaceholderPage(title: 'Tất cả chức năng'),
-        ),
+            context, const PlaceholderPage(title: 'Tất cả chức năng')),
       ),
     ];
-    // -------------------------------------------------
 
-    return ListView(
-      padding: const EdgeInsets.all(16.0),
-      children: [
-        // --- Header (Thời tiết, Chào mừng) ---
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            // --- Cột bên trái (Thời tiết) ---
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'TP. Vũng Tàu',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: CustomScrollView(
+        slivers: [
+          // AppBar gradient
+          SliverAppBar(
+            expandedHeight: 160,
+            floating: false,
+            pinned: true,
+            flexibleSpace: FlexibleSpaceBar(
+              background: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Theme.of(context).primaryColor,
+                      Theme.of(context).primaryColor.withOpacity(0.7),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 4),
-                _isLoadingWeather
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Text(
-                        _weatherResult,
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: _weatherResult.startsWith('Lỗi:')
-                              ? Colors.red
-                              : null,
+                child: SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 24,
+                              backgroundColor: Colors.white,
+                              child: Text(
+                                widget.user.username[0].toUpperCase(),
+                                style: TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  color: Theme.of(context).primaryColor,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Xin chào',
+                                    style: TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  Text(
+                                    widget.user.username,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-              ],
-            ),
-            // --- Cột bên phải (Chào mừng) ---
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  'Chào, ${widget.user.username}',
-                  style: const TextStyle(fontSize: 16),
-                ),
-                const SizedBox(height: 4),
-                Text(formattedDate, style: const TextStyle(fontSize: 16)),
-              ],
-            ),
-          ],
-        ),
-        const SizedBox(height: 24),
-
-        // --- Banner sự kiện ---
-        _buildBannerSection(),
-        const SizedBox(height: 24),
-
-        // --- Grid chức năng ---
-        Text(
-          'Cổng thông tin',
-          style: Theme.of(context).textTheme.headlineSmall,
-        ),
-        const SizedBox(height: 16),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: functionItems.length,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            childAspectRatio: 1.0,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-          ),
-          itemBuilder: (context, index) {
-            final item = functionItems[index];
-            return InkWell(
-              onTap: item.onTap,
-              borderRadius: BorderRadius.circular(12),
-              child: Card(
-                elevation: 2,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      item.icon,
-                      size: 36,
-                      color: Theme.of(context).primaryColor,
+                      ],
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      item.title,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 12),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+                  ),
                 ),
               ),
-            );
-          },
-        ),
-      ],
+            ),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.logout_rounded, color: Colors.white),
+                onPressed: widget.onLogout, // ✅ SỬA: Gọi callback từ parent
+              ),
+            ],
+          ),
+
+          // Content
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Weather card
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.blue.shade400, Colors.blue.shade600],
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.blue.withOpacity(0.3),
+                          blurRadius: 10,
+                          offset: const Offset(0, 5),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.wb_sunny_rounded,
+                            color: Colors.white, size: 48),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'TP. Vũng Tàu',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              _isLoadingWeather
+                                  ? const SizedBox(
+                                      height: 16,
+                                      width: 16,
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : Text(
+                                      _weatherResult,
+                                      style: const TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          formattedDate,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Banner
+                  _buildBannerSection(),
+                  const SizedBox(height: 24),
+
+                  // Section title
+                  const Text(
+                    'Dịch vụ tiện ích',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Grid
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: functionItems.length,
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 4,
+                      childAspectRatio: 0.85,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                    ),
+                    itemBuilder: (context, index) {
+                      final item = functionItems[index];
+                      return InkWell(
+                        onTap: item.onTap,
+                        borderRadius: BorderRadius.circular(16),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 10,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: item.color.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Icon(item.icon,
+                                    size: 28, color: item.color),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                item.title,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 20),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -67,22 +67,45 @@ class FloodReportService {
   }
 
   // ✅ Lấy báo cáo của user
-  static Future<Map<String, dynamic>> getMyReports(int userId) async {
+  // Tìm method getMyReports và sửa thành:
+  static Future<Map<String, dynamic>> getMyReports(
+    int userId, {
+    String? status, // ✅ Đảm bảo có dòng này
+  }) async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/my-reports/$userId'),
-        headers: {'Accept': 'application/json'},
-      );
+      String url = '$baseUrl/my-reports/$userId';
 
-      final data = json.decode(response.body);
+      // Thêm query params nếu có
+      if (status != null && status.isNotEmpty) {
+        url += '?status=$status';
+      }
+
+      debugPrint('📥 Fetching my reports from: $url');
+
+      final response = await http.get(Uri.parse(url));
+
+      debugPrint('📥 Response status: ${response.statusCode}');
+      debugPrint('📥 Response body: ${response.body}');
 
       if (response.statusCode == 200) {
-        return {'success': true, 'data': data['data']};
+        final data = json.decode(response.body);
+        return {
+          'success': true,
+          'data': data['data'] ?? data,
+        };
       } else {
-        return {'success': false, 'message': data['message']};
+        final data = json.decode(response.body);
+        return {
+          'success': false,
+          'message': data['message'] ?? 'Lỗi tải dữ liệu',
+        };
       }
     } catch (e) {
-      return {'success': false, 'message': 'Lỗi: $e'};
+      debugPrint('❌ Error fetching my reports: $e');
+      return {
+        'success': false,
+        'message': 'Lỗi kết nối: $e',
+      };
     }
   }
 

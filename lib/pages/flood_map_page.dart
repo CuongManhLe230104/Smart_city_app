@@ -46,7 +46,7 @@ class _FloodMapPageState extends State<FloodMapPage> {
     try {
       final result = await FloodReportService.getApprovedReports();
 
-      debugPrint('📊 API Response: $result');
+      debugPrint('API Response: $result');
 
       if (result['success'] == true) {
         final data = result['data'];
@@ -57,7 +57,7 @@ class _FloodMapPageState extends State<FloodMapPage> {
                 try {
                   return FloodReportModel.fromJson(json);
                 } catch (e) {
-                  debugPrint('❌ Lỗi parse report: $e');
+                  debugPrint('Lỗi parse report: $e');
                   return null;
                 }
               })
@@ -75,7 +75,7 @@ class _FloodMapPageState extends State<FloodMapPage> {
             result['message']?.toString() ?? 'Không thể tải dữ liệu';
       }
     } catch (e, stackTrace) {
-      debugPrint('❌ Lỗi tải dữ liệu: $e');
+      debugPrint('Lỗi tải dữ liệu: $e');
       debugPrint('Stack trace: $stackTrace');
       _errorMessage = 'Lỗi: $e';
     }
