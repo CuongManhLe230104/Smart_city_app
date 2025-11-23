@@ -28,7 +28,7 @@ class _FloodMapPageState extends State<FloodMapPage> {
     'Low',
     'Medium',
     'High',
-    'Critical'
+    'Dangerous',
   ];
 
   @override

@@ -652,7 +652,7 @@ class _ReportCard extends StatelessWidget {
         return Colors.orange;
       case 'high':
         return Colors.red;
-      case 'critical':
+      case 'dangerous':
         return Colors.purple;
       default:
         return Colors.grey;
@@ -667,7 +667,7 @@ class _ReportCard extends StatelessWidget {
         return 'Trung bình';
       case 'high':
         return 'Cao';
-      case 'critical':
+      case 'dangerous':
         return 'Nguy hiểm';
       default:
         return 'Không rõ';

@@ -82,7 +82,7 @@ class FloodReportModel {
         return Colors.orange;
       case 'High':
         return Colors.red;
-      case 'Critical':
+      case 'Dangerous':
         return Colors.purple;
       default:
         return Colors.grey;
@@ -97,7 +97,7 @@ class FloodReportModel {
         return 'Trung bình';
       case 'High':
         return 'Cao';
-      case 'Critical':
+      case 'Dangerous':
         return 'Nguy hiểm';
       default:
         return 'Không rõ';
