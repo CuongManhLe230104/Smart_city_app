@@ -31,16 +31,24 @@ class _FloodReportPageState extends State<FloodReportPage> {
   bool _isUploading = false;
   bool _isGettingLocation = false;
 
+  // ✅ THÊM: Stream để lắng nghe GPS realtime
+  StreamSubscription<Position>? _positionStreamSubscription;
+  bool _isTrackingLocation = false;
+
   @override
   void initState() {
     super.initState();
     _checkPermissions();
+    // ✅ THÊM: Tự động bật tracking khi vào page
+    _startLocationTracking();
   }
 
   @override
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
+    // ✅ THÊM: Dừng tracking khi rời page
+    _stopLocationTracking();
     super.dispose();
   }
 
@@ -146,7 +154,101 @@ class _FloodReportPageState extends State<FloodReportPage> {
     }
   }
 
-  // 📍 Lấy vị trí hiện tại
+  // ✅ THÊM: Bắt đầu theo dõi vị trí realtime
+  Future<void> _startLocationTracking() async {
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        throw 'Dịch vụ vị trí chưa được bật';
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          throw 'Quyền truy cập vị trí bị từ chối';
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        throw 'Quyền truy cập vị trí bị từ chối vĩnh viễn';
+      }
+
+      setState(() {
+        _isTrackingLocation = true;
+      });
+
+      // ✅ LẮNG NGHE VỊ TRÍ REALTIME
+      const LocationSettings locationSettings = LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 10, // Cập nhật khi di chuyển 10m
+      );
+
+      _positionStreamSubscription = Geolocator.getPositionStream(
+        locationSettings: locationSettings,
+      ).listen((Position position) async {
+        // ✅ TỰ ĐỘNG CẬP NHẬT VỊ TRÍ
+        debugPrint(
+            '📍 GPS updated: ${position.latitude}, ${position.longitude}');
+
+        // Lấy địa chỉ mới
+        try {
+          List<Placemark> placemarks = await placemarkFromCoordinates(
+            position.latitude,
+            position.longitude,
+          );
+
+          String address = 'Không xác định';
+          if (placemarks.isNotEmpty) {
+            Placemark place = placemarks[0];
+            address =
+                '${place.street}, ${place.subAdministrativeArea}, ${place.administrativeArea}';
+          }
+
+          setState(() {
+            _currentPosition = position;
+            _currentAddress = address;
+          });
+        } catch (e) {
+          debugPrint('Lỗi lấy địa chỉ: $e');
+          setState(() {
+            _currentPosition = position;
+            _currentAddress =
+                'Lat: ${position.latitude.toStringAsFixed(6)}, Lon: ${position.longitude.toStringAsFixed(6)}';
+          });
+        }
+      });
+
+      // Lấy vị trí đầu tiên ngay lập tức
+      await _getCurrentLocation();
+    } catch (e) {
+      debugPrint('Lỗi tracking location: $e');
+      setState(() {
+        _isTrackingLocation = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Không thể theo dõi vị trí: $e'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    }
+  }
+
+  // ✅ THÊM: Dừng theo dõi vị trí
+  void _stopLocationTracking() {
+    _positionStreamSubscription?.cancel();
+    _positionStreamSubscription = null;
+    setState(() {
+      _isTrackingLocation = false;
+    });
+    debugPrint('🛑 Stopped location tracking');
+  }
+
+  // 📍 Lấy vị trí hiện tại (giữ nguyên, dùng cho button)
   Future<void> _getCurrentLocation() async {
     setState(() {
       _isGettingLocation = true;
@@ -303,6 +405,38 @@ class _FloodReportPageState extends State<FloodReportPage> {
       appBar: AppBar(
         title: const Text('Báo cáo ngập lụt'),
         elevation: 1,
+        actions: [
+          // ✅ THÊM: Nút bật/tắt tracking
+          IconButton(
+            icon: Icon(
+              _isTrackingLocation ? Icons.gps_fixed : Icons.gps_off,
+              color: _isTrackingLocation ? Colors.green : Colors.grey,
+            ),
+            onPressed: () {
+              if (_isTrackingLocation) {
+                _stopLocationTracking();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('🛑 Đã tắt theo dõi vị trí tự động'),
+                    backgroundColor: Colors.orange,
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              } else {
+                _startLocationTracking();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('✅ Đã bật theo dõi vị trí tự động'),
+                    backgroundColor: Colors.green,
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              }
+            },
+            tooltip:
+                _isTrackingLocation ? 'Tắt theo dõi GPS' : 'Bật theo dõi GPS',
+          ),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -474,11 +608,43 @@ class _FloodReportPageState extends State<FloodReportPage> {
 
                     const SizedBox(height: 24),
 
-                    // 📍 VỊ TRÍ
-                    const Text(
-                      'Vị trí *',
-                      style:
-                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    // 📍 VỊ TRÍ (UPDATE)
+                    Row(
+                      children: [
+                        const Text(
+                          'Vị trí *',
+                          style: TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(width: 8),
+                        // ✅ THÊM: Indicator tracking
+                        if (_isTrackingLocation)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.green.shade100,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.green.shade300),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.gps_fixed,
+                                    size: 14, color: Colors.green.shade700),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Đang theo dõi',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.green.shade700,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
                     ),
                     const SizedBox(height: 12),
 
@@ -545,9 +711,38 @@ class _FloodReportPageState extends State<FloodReportPage> {
                             : const Icon(Icons.my_location),
                         label: Text(_isGettingLocation
                             ? 'Đang lấy vị trí...'
-                            : 'Lấy vị trí hiện tại'),
+                            : 'Làm mới vị trí'),
                       ),
                     ),
+
+                    // ✅ THÊM: Thông báo tracking
+                    if (_isTrackingLocation) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.green.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.green.shade200),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.info_outline,
+                                color: Colors.green.shade700, size: 18),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Vị trí đang được cập nhật tự động khi bạn di chuyển (mỗi 10m)',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.green.shade900,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
 
                     const SizedBox(height: 24),
 
@@ -633,7 +828,6 @@ class _FloodReportPageState extends State<FloodReportPage> {
 
                     const SizedBox(height: 32),
 
-                    // 📤 NÚT GỬI (giữ nguyên)
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton(
