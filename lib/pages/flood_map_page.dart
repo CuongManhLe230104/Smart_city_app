@@ -136,7 +136,7 @@ class _FloodMapPageState extends State<FloodMapPage> {
 
   Color _getMarkerColor(String waterLevel) {
     switch (waterLevel) {
-      case 'Critical':
+      case 'Dangerous':
         return Colors.purple;
       case 'High':
         return Colors.red;
@@ -146,6 +146,249 @@ class _FloodMapPageState extends State<FloodMapPage> {
       default:
         return Colors.yellow.shade700;
     }
+  }
+
+  // ✅ THÊM: Hiển thị danh sách điểm ngập
+  void _showFloodLocationsList() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (context, scrollController) {
+          // Lọc reports theo filter hiện tại
+          final filteredReports =
+              _selectedWaterLevel == null || _selectedWaterLevel == 'All'
+                  ? _reports
+                  : _reports
+                      .where((r) => r.waterLevel == _selectedWaterLevel)
+                      .toList();
+
+          return Column(
+            children: [
+              // Drag handle
+              Container(
+                margin: const EdgeInsets.only(top: 12, bottom: 8),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+
+              // Header
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                child: Row(
+                  children: [
+                    const Icon(Icons.list_alt, size: 24),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Danh sách điểm ngập (${filteredReports.length})',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+              ),
+
+              const Divider(height: 1),
+
+              // Danh sách
+              Expanded(
+                child: filteredReports.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.location_off,
+                              size: 64,
+                              color: Colors.grey.shade400,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Không có điểm ngập nào',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        controller: scrollController,
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        itemCount: filteredReports.length,
+                        itemBuilder: (context, index) {
+                          final report = filteredReports[index];
+                          return _buildLocationListItem(report);
+                        },
+                      ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  // ✅ THÊM: Widget item trong danh sách
+  Widget _buildLocationListItem(FloodReportModel report) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: InkWell(
+        onTap: () {
+          // Đóng bottom sheet
+          Navigator.pop(context);
+
+          // Di chuyển đến vị trí
+          _mapController.move(
+            latlong.LatLng(report.latitude, report.longitude),
+            16.0,
+          );
+
+          // Hiển thị detail sau 500ms
+          Future.delayed(const Duration(milliseconds: 500), () {
+            if (mounted) {
+              _showReportDetail(report);
+            }
+          });
+        },
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Icon mức độ ngập
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: report.getWaterLevelColor().withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.water_drop,
+                  color: report.getWaterLevelColor(),
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+
+              // Nội dung
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Tiêu đề
+                    Text(
+                      report.title ?? 'Không có tiêu đề',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+
+                    // Địa chỉ
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.location_on,
+                          size: 14,
+                          color: Colors.grey.shade600,
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            report.address ?? 'Không có địa chỉ',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey.shade700,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+
+                    // Mức độ + Thời gian
+                    Row(
+                      children: [
+                        // Mức độ ngập
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: report.getWaterLevelColor().withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            report.getWaterLevelText(),
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: report.getWaterLevelColor(),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+
+                        // Thời gian
+                        Icon(
+                          Icons.access_time,
+                          size: 12,
+                          color: Colors.grey.shade600,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _formatDateTimeShort(
+                            report.approvedAt ?? report.createdAt,
+                          ),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              // Arrow icon
+              Icon(
+                Icons.chevron_right,
+                color: Colors.grey.shade400,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _showReportDetail(FloodReportModel report) {
@@ -337,6 +580,24 @@ class _FloodMapPageState extends State<FloodMapPage> {
     return '${dt.day}/${dt.month}/${dt.year} ${dt.hour}:${dt.minute.toString().padLeft(2, '0')}';
   }
 
+  // ✅ THÊM: Format ngắn gọn cho danh sách
+  String _formatDateTimeShort(DateTime? dt) {
+    if (dt == null) return 'N/A';
+
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+
+    if (diff.inDays == 0) {
+      return '${dt.hour}:${dt.minute.toString().padLeft(2, '0')}';
+    } else if (diff.inDays == 1) {
+      return 'Hôm qua';
+    } else if (diff.inDays < 7) {
+      return '${diff.inDays} ngày trước';
+    } else {
+      return '${dt.day}/${dt.month}';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -471,27 +732,18 @@ class _FloodMapPageState extends State<FloodMapPage> {
                         ),
                       ),
                     ),
-
-                    // Số lượng điểm
-                    Positioned(
-                      bottom: 16,
-                      left: 16,
-                      right: 16,
-                      child: Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Text(
-                            _markers.isEmpty
-                                ? '📍 Chưa có điểm ngập nào'
-                                : '📍 ${_markers.length}/${_reports.length} điểm ngập',
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ),
-                    ),
                   ],
                 ),
+
+      // ✅ THÊM: Floating Action Button hiển thị danh sách
+      floatingActionButton: _isLoading || _reports.isEmpty
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: _showFloodLocationsList,
+              icon: const Icon(Icons.list_alt),
+              label: Text('Danh sách (${_reports.length})'),
+              backgroundColor: Theme.of(context).primaryColor,
+            ),
     );
   }
 
