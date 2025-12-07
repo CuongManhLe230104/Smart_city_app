@@ -13,6 +13,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'flood_report_page.dart';
 import 'flood_map_page.dart';
 import 'all_flood_reports_page.dart';
+import 'tour_list_page.dart';
+import 'my_bookings_page.dart';
+import 'notifications_page.dart';
 
 class HomePage extends StatefulWidget {
   final UserModel user;
@@ -503,10 +506,18 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
       ),
       _FunctionItem(
         title: 'Du lịch',
-        icon: Icons.restaurant_menu_rounded,
+        icon: Icons.flight_takeoff_rounded, // Đổi icon sang du lịch
         color: Colors.pink,
         onTap: () => _navigateTo(
-            context, const PlaceholderPage(title: 'Du lịch & Ẩm thực')),
+            context, const TourListPage()), // 👈 Điều hướng đến TourListPage
+      ),
+      // 🆕 LỊCH SỬ ĐẶT TOUR
+      _FunctionItem(
+        title: 'Tour của tôi',
+        icon: Icons.bookmark_added_rounded, // Icon cho lịch sử đặt tour
+        color: Colors.brown,
+        onTap: () => _navigateTo(context,
+            const MyBookingsPage()), // 👈 Điều hướng đến MyBookingsPage
       ),
       _FunctionItem(
         title: 'Mức mưa',
@@ -604,9 +615,21 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
               ),
             ),
             actions: [
+              // ✅ THÊM: Nút thông báo
+              IconButton(
+                icon: const Icon(Icons.notifications_rounded,
+                    color: Colors.white),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const NotificationsPage()),
+                  );
+                },
+              ),
               IconButton(
                 icon: const Icon(Icons.logout_rounded, color: Colors.white),
-                onPressed: widget.onLogout, // ✅ SỬA: Gọi callback từ parent
+                onPressed: widget.onLogout,
               ),
             ],
           ),

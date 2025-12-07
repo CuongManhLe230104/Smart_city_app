@@ -1,9 +1,11 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
-// import 'package:firebase_auth/firebase_auth.dart';
+import 'package:smart_city/services/tour_service.dart';
 import '../screens/register_screen.dart';
 import '../../pages/home_page.dart';
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -53,6 +55,10 @@ class _LoginScreenState extends State<LoginScreen> {
           username: userData['fullName'] ?? userData['email'].split('@')[0],
           email: userData['email'],
         );
+
+        // Lưu token vào SharedPreferences
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('jwt_token', result['data']['token']);
 
         if (mounted) {
           Navigator.of(context).pushAndRemoveUntil(
@@ -221,6 +227,38 @@ class _LoginScreenState extends State<LoginScreen> {
                       );
                     },
                     child: const Text('Chưa có tài khoản? Đăng ký ngay'),
+                  ),
+
+                  // DEBUG BUTTON (XÓA SAU KHI FIX XONG)
+                  TextButton.icon(
+                    onPressed: () async {
+                      final status = await TourService.debugAuthStatus();
+                      showDialog(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: const Text('🔍 Auth Debug Info'),
+                          content: SingleChildScrollView(
+                            child: Text(
+                              const JsonEncoder.withIndent('  ')
+                                  .convert(status),
+                              style: const TextStyle(
+                                  fontFamily: 'monospace', fontSize: 12),
+                            ),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text('Close'),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.bug_report),
+                    label: const Text('Debug Auth Status'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.grey,
+                    ),
                   ),
                 ],
               ),

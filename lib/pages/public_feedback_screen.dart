@@ -466,6 +466,31 @@ class _PublicFeedbackCard extends StatelessWidget {
                 style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
               ),
 
+              // ✅ THÊM: Image preview
+              if (feedback.imageUrl != null &&
+                  feedback.imageUrl!.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.network(
+                    feedback.imageUrl!,
+                    height: 150,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        height: 150,
+                        color: Colors.grey.shade200,
+                        child: const Center(
+                          child: Icon(Icons.broken_image,
+                              size: 48, color: Colors.grey),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+
               // Location
               if (feedback.location != null) ...[
                 const SizedBox(height: 8),
@@ -649,6 +674,25 @@ class _PublicFeedbackCard extends StatelessWidget {
                     height: 1.5,
                   ),
                 ),
+
+                // ✅ THÊM
+                if (feedback.imageUrl != null &&
+                    feedback.imageUrl!.isNotEmpty) ...[
+                  const Divider(height: 32),
+                  const Text(
+                    'Hình ảnh',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.network(
+                      feedback.imageUrl!,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ],
 
                 // Admin Response
                 if (feedback.adminResponse != null) ...[

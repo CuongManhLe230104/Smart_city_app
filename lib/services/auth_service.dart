@@ -3,9 +3,11 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
+import '../config/api_config.dart';
 
 class AuthService {
-  static const String baseUrl = 'http://10.0.2.2:5000/api/auth';
+  // ✅ Dùng config chung
+  static String get baseUrl => ApiConfig.authUrl;
 
   // ✅ Login với named parameters
   static Future<Map<String, dynamic>> login({

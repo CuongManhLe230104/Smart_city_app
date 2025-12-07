@@ -1,0 +1,51 @@
+import 'dart:async';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:geolocator/geolocator.dart';
+import '../config/api_config.dart';
+
+class PCLocationService {
+  static String get baseUrl => ApiConfig.locationUrl;
+
+  static Future<Position?> getLocationFromPC() async {
+    try {
+      final response = await http.get(
+        Uri.parse(baseUrl),
+      ).timeout(const Duration(seconds: 5));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        if (data['success'] == true) {
+          final lat = data['latitude'];
+          final lon = data['longitude'];
+          final accuracy = data['accuracy'] ?? 0.0;
+
+          return Position(
+            latitude: lat,
+            longitude: lon,
+            timestamp: DateTime.parse(data['timestamp']),
+            accuracy: accuracy,
+            altitude: 0,
+            altitudeAccuracy: 0,
+            heading: 0,
+            headingAccuracy: 0,
+            speed: 0,
+            speedAccuracy: 0,
+          );
+        }
+      }
+    } catch (e) {
+      print('❌ Error getting location from PC: $e');
+    }
+    return null;
+  }
+
+  static Stream<Position> getLocationStream() {
+    return Stream.periodic(const Duration(seconds: 2), (_) async {
+      return await getLocationFromPC();
+    }).asyncMap((futurePosition) async => await futurePosition)
+      .where((position) => position != null)
+      .cast<Position>();
+  }
+}

@@ -105,37 +105,22 @@ class _FloodReportPageState extends State<FloodReportPage> {
     });
 
     try {
-      final result = await UploadService.uploadImage(_selectedImage!);
+      // ✅ SỬA: uploadImage trả về String (URL), không phải Map
+      final imageUrl = await UploadService.uploadFloodImage(_selectedImage!);
 
-      if (result['success']) {
-        setState(() {
-          _uploadedImageUrl = result['url'];
-          _isUploading = false;
-        });
+      setState(() {
+        _uploadedImageUrl = imageUrl; // ✅ Gán trực tiếp String
+        _isUploading = false;
+      });
 
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('✅ Upload ảnh thành công'),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
-            ),
-          );
-        }
-      } else {
-        setState(() {
-          _isUploading = false;
-          _selectedImage = null;
-        });
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('❌ ${result['message']}'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Upload ảnh thành công'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
       }
     } catch (e) {
       setState(() {
