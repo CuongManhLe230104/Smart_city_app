@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'services/notification_service.dart';
 import 'auth/screens/login_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'pages/home_page.dart';
@@ -6,6 +8,13 @@ import 'models/user_model.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // ✅ KHỞI TẠO FIREBASE
+  await Firebase.initializeApp();
+
+  // ✅ KHỞI TẠO NOTIFICATION SERVICE
+  await NotificationService.instance.initialize();
+
   runApp(const MyApp());
 }
 

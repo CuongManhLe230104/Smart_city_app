@@ -1,9 +1,10 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
+import '../config/api_config.dart';
 
 class FloodReportService {
-  static const String baseUrl = 'http://10.0.2.2:5000/api/floodreports';
+  static String get baseUrl => ApiConfig.floodReportsUrl;
 
   // ✅ Lấy TẤT CẢ báo cáo (không chỉ approved)
   static Future<Map<String, dynamic>> getAllReports({

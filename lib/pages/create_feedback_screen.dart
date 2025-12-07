@@ -1,5 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../services/feedback_service.dart';
+import '../services/upload_service.dart';
 import '../models/user_model.dart';
 
 class CreateFeedbackScreen extends StatefulWidget {
@@ -16,10 +19,16 @@ class _CreateFeedbackScreenState extends State<CreateFeedbackScreen> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _locationController = TextEditingController();
+  final ImagePicker _picker = ImagePicker();
 
   String _selectedCategory = 'Giao thông';
   bool _isLoading = false;
   String _errorMessage = '';
+
+  // ✅ Image handling - GIỐNG FLOOD REPORT
+  File? _selectedImage;
+  String? _uploadedImageUrl;
+  bool _isUploading = false;
 
   final List<String> _categories = [
     'Giao thông',
@@ -41,8 +50,133 @@ class _CreateFeedbackScreenState extends State<CreateFeedbackScreen> {
     'Khác': Icons.more_horiz,
   };
 
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descriptionController.dispose();
+    _locationController.dispose();
+    super.dispose();
+  }
+
+  // ✅ PICK IMAGE - GIỐNG FLOOD REPORT
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: source,
+        imageQuality: 80,
+        maxWidth: 1920,
+      );
+
+      if (image != null) {
+        setState(() {
+          _selectedImage = File(image.path);
+          _uploadedImageUrl = null;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Lỗi chọn ảnh: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // ✅ SHOW IMAGE SOURCE DIALOG - GIỐNG FLOOD REPORT
+  void _showImageSourceDialog() {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera, color: Colors.blue),
+              title: const Text('Chụp ảnh'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage(ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library, color: Colors.green),
+              title: const Text('Chọn từ thư viện'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage(ImageSource.gallery);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ✅ UPLOAD IMAGE - GIỐNG FLOOD REPORT
+  Future<void> _uploadImage() async {
+    if (_selectedImage == null) return;
+
+    setState(() {
+      _isUploading = true;
+    });
+
+    try {
+      final imageUrl = await UploadService.uploadFeedbackImage(_selectedImage!);
+
+      setState(() {
+        _uploadedImageUrl = imageUrl;
+        _isUploading = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Upload ảnh thành công'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _isUploading = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Lỗi upload: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // ✅ REMOVE IMAGE - GIỐNG FLOOD REPORT
+  void _removeImage() {
+    setState(() {
+      _selectedImage = null;
+      _uploadedImageUrl = null;
+    });
+  }
+
+  // ✅ SUBMIT FEEDBACK
   Future<void> _submitFeedback() async {
     if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    // ✅ Kiểm tra đã upload ảnh chưa (nếu có chọn)
+    if (_selectedImage != null && _uploadedImageUrl == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('⚠️ Vui lòng upload ảnh trước khi gửi'),
+          backgroundColor: Colors.orange,
+        ),
+      );
       return;
     }
 
@@ -60,6 +194,7 @@ class _CreateFeedbackScreenState extends State<CreateFeedbackScreen> {
         location: _locationController.text.trim().isEmpty
             ? null
             : _locationController.text.trim(),
+        imageUrl: _uploadedImageUrl, // ✅ Gửi URL đã upload
       );
 
       if (mounted) {
@@ -71,7 +206,7 @@ class _CreateFeedbackScreenState extends State<CreateFeedbackScreen> {
               duration: Duration(seconds: 2),
             ),
           );
-          Navigator.pop(context, true); // Return true để reload list
+          Navigator.pop(context, true);
         } else {
           setState(() {
             _errorMessage = result['message'];
@@ -85,14 +220,6 @@ class _CreateFeedbackScreenState extends State<CreateFeedbackScreen> {
         });
       }
     }
-  }
-
-  @override
-  void dispose() {
-    _titleController.dispose();
-    _descriptionController.dispose();
-    _locationController.dispose();
-    super.dispose();
   }
 
   @override
@@ -110,7 +237,7 @@ class _CreateFeedbackScreenState extends State<CreateFeedbackScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Header với icon
+                // Header
                 Container(
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
@@ -170,6 +297,178 @@ class _CreateFeedbackScreenState extends State<CreateFeedbackScreen> {
                       ],
                     ),
                   ),
+
+                // ✅ IMAGE SECTION - GIỐNG FLOOD REPORT
+                const Text(
+                  'Hình ảnh minh họa',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+
+                // Image preview
+                GestureDetector(
+                  onTap: _selectedImage == null ? _showImageSourceDialog : null,
+                  child: Container(
+                    height: 200,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: Colors.grey.shade300,
+                        width: 2,
+                      ),
+                    ),
+                    child: _selectedImage != null
+                        ? Stack(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: Image.file(
+                                  _selectedImage!,
+                                  width: double.infinity,
+                                  height: double.infinity,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                              // Remove button
+                              Positioned(
+                                top: 8,
+                                right: 8,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.red,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: IconButton(
+                                    icon: const Icon(Icons.close,
+                                        color: Colors.white),
+                                    onPressed: _removeImage,
+                                  ),
+                                ),
+                              ),
+                              // Upload status
+                              if (_uploadedImageUrl != null)
+                                Positioned(
+                                  bottom: 12,
+                                  left: 12,
+                                  right: 12,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.green.shade700,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.check_circle,
+                                          color: Colors.white,
+                                          size: 18,
+                                        ),
+                                        SizedBox(width: 6),
+                                        Text(
+                                          'Đã upload thành công',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          )
+                        : Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.add_photo_alternate,
+                                  size: 64,
+                                  color: Colors.grey.shade400,
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'Nhấn để thêm ảnh',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.grey.shade600,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '(Tuỳ chọn)',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey.shade500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // Upload/Change buttons
+                if (_selectedImage != null && _uploadedImageUrl == null)
+                  ElevatedButton.icon(
+                    onPressed: _isUploading ? null : _uploadImage,
+                    icon: _isUploading
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor:
+                                  AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : const Icon(Icons.cloud_upload),
+                    label: Text(_isUploading ? 'Đang upload...' : 'Upload ảnh'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue.shade600,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                  )
+                else if (_selectedImage == null)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _pickImage(ImageSource.camera),
+                          icon: const Icon(Icons.camera_alt),
+                          label: const Text('Chụp ảnh'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _pickImage(ImageSource.gallery),
+                          icon: const Icon(Icons.photo_library),
+                          label: const Text('Chọn ảnh'),
+                        ),
+                      ),
+                    ],
+                  )
+                else
+                  OutlinedButton.icon(
+                    onPressed: _showImageSourceDialog,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Thay đổi ảnh'),
+                  ),
+
+                const SizedBox(height: 24),
 
                 // Danh mục
                 const Text(
@@ -291,9 +590,7 @@ class _CreateFeedbackScreenState extends State<CreateFeedbackScreen> {
 
                 // Nút gửi
                 _isLoading
-                    ? const Center(
-                        child: CircularProgressIndicator(),
-                      )
+                    ? const Center(child: CircularProgressIndicator())
                     : FilledButton.icon(
                         onPressed: _submitFeedback,
                         icon: const Icon(Icons.send),

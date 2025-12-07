@@ -1,24 +1,23 @@
-import 'dart:convert'; // SỬA: Dùng dấu hai chấm (:)
-import 'package:http/http.dart' as http; // SỬA: Dùng dấu hai chấm (:)
+import 'dart:convert';
+import 'dart:io';
+import 'package:http/http.dart' as http;
 import '../models/bus_route_model.dart';
 import '../models/location_search_result.dart';
 import '../models/event_banner_model.dart';
+import '../config/api_config.dart';
 
 class ApiService {
-  // --- 1. API THỜI TIẾT ---
-  static const String _weatherApiKey = 'b19130f92ebc617c3b3f0d52f0178d18';
-  static const String _weatherBaseUrl =
-      'https://api.openweathermap.org/data/2.5';
-
+  static const String _myApiBaseUrl = 'http://10.0.2.2:5000';
+  // --- 1. API THỜI TIẾT (giữ nguyên) ---
   Future<String> fetchWeather() async {
-    if (_weatherApiKey == 'YOUR_API_KEY_HERE') {
+    if (ApiConfig.weatherApiKey == 'YOUR_API_KEY_HERE') {
       return 'Lỗi: Chưa có API Key';
     }
     try {
       const String lat = '10.4113';
       const String lon = '107.1362';
       final Uri url = Uri.parse(
-        '$_weatherBaseUrl/weather?lat=$lat&lon=$lon&appid=$_weatherApiKey&units=metric&lang=vi',
+        '${ApiConfig.weatherBaseUrl}/weather?lat=$lat&lon=$lon&appid=${ApiConfig.weatherApiKey}&units=metric&lang=vi',
       );
       final http.Response response = await http.get(url);
       if (response.statusCode == 200) {
@@ -34,15 +33,12 @@ class ApiService {
     }
   }
 
-  // --- 2. API BẢN ĐỒ ---
-  static const String _mapApiKey = 'pk.775aea632346a6c8295fe849c170b94b';
-  static const String _mapBaseUrl = 'https://us1.locationiq.com/v1';
-
+  // --- 2. API BẢN ĐỒ (giữ nguyên) ---
   Future<Map<String, double>> fetchMapCoordinates() async {
     try {
       const String query = 'Vung Tau, Ba Ria - Vung Tau, Vietnam';
       final Uri url = Uri.parse(
-        '$_mapBaseUrl/search?key=$_mapApiKey&q=$query&format=json',
+        '${ApiConfig.mapBaseUrl}/search?key=${ApiConfig.mapApiKey}&q=$query&format=json',
       );
       final http.Response response = await http.get(url);
 
@@ -50,8 +46,6 @@ class ApiService {
         final List<dynamic> data = jsonDecode(response.body);
         if (data.isNotEmpty) {
           final Map<String, dynamic> firstResult = data[0];
-
-          // SỬA: Parse string sang double và trả về Map
           final double lat = double.parse(firstResult['lat']);
           final double lon = double.parse(firstResult['lon']);
           return {'lat': lat, 'lon': lon};
@@ -66,11 +60,9 @@ class ApiService {
     }
   }
 
-  // --- 3. API BACKEND CỦA BẠN ---
-  static const String _myApiBaseUrl = 'http://10.0.2.2:5000';
-
+  // --- 3. API BACKEND (✅ SỬA) ---
   Future<List<BusRouteModel>> fetchBusRoutes() async {
-    final Uri url = Uri.parse('$_myApiBaseUrl/api/BusRoutes');
+    final Uri url = Uri.parse(ApiConfig.busRoutesUrl); // ✅ SỬA
     final http.Response response;
 
     try {
@@ -90,12 +82,9 @@ class ApiService {
     }
   }
 
-  // --- 4. HÀM MỚI BỊ THIẾU ĐỂ GỌI API SEARCH ---
   Future<List<LocationSearchResult>> searchLocations(String query) async {
-    // Tạo URL với query (đã được mã hóa)
-    final Uri url = Uri.parse(
-      '$_myApiBaseUrl/api/search',
-    ).replace(queryParameters: {'q': query});
+    final Uri url = Uri.parse(ApiConfig.searchUrl) // ✅ SỬA
+        .replace(queryParameters: {'q': query});
 
     final http.Response response;
 
@@ -110,8 +99,6 @@ class ApiService {
     if (response.statusCode == 200) {
       final String responseBody = utf8.decode(response.bodyBytes);
       final List<dynamic> jsonData = jsonDecode(responseBody);
-
-      // Chuyển JSON (List) sang List<LocationSearchResult>
       return jsonData
           .map((json) => LocationSearchResult.fromJson(json))
           .toList();
@@ -121,29 +108,54 @@ class ApiService {
   }
 
   Future<List<EventBannerModel>> fetchEventBanners() async {
-    final Uri url = Uri.parse('$_myApiBaseUrl/api/EventBanners');
-    final http.Response response;
-
     try {
-      response = await http.get(url);
-    } catch (e) {
-      throw Exception(
-        'Lỗi kết nối: Không thể kết nối tới backend. Backend đã chạy chưa?',
-      );
-    }
+      // ✅ ĐÚNG ENDPOINT
+      final url = '${ApiConfig.apiUrl}/EventBanners';
+      print('🔄 Fetching event banners from: $url');
 
-    if (response.statusCode == 200) {
-      final String responseBody = utf8.decode(response.bodyBytes);
-      final List<dynamic> jsonData = jsonDecode(responseBody);
-      return jsonData.map((json) => EventBannerModel.fromJson(json)).toList();
-    } else {
-      throw Exception('Lỗi khi tải banner sự kiện: ${response.statusCode}');
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json; charset=UTF-8',
+        },
+      );
+
+      print('📥 Response status: ${response.statusCode}');
+      print('📥 Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        // ✅ Check empty response
+        if (response.body.isEmpty) {
+          print('⚠️ Empty response body');
+          return [];
+        }
+
+        final List<dynamic> data = json.decode(response.body);
+        print('📊 Parsed ${data.length} banners');
+
+        // ✅ Parse banners
+        final banners = data.map((json) {
+          final banner = EventBannerModel.fromJson(json);
+          print('🖼️ Banner ${banner.id}: ${banner.imageUrl}');
+          return banner;
+        }).toList();
+
+        print('✅ Loaded ${banners.length} banners');
+        return banners;
+      } else {
+        print('❌ Error status: ${response.statusCode}');
+        throw Exception('Failed to load banners: ${response.statusCode}');
+      }
+    } catch (e, stackTrace) {
+      print('❌ Error fetching banners: $e');
+      print('❌ Stack trace: $stackTrace');
+      return []; // Return empty list instead of throwing
     }
   }
 
-  // Thêm method tìm kiếm bus routes
   Future<List<BusRouteModel>> searchBusRoutes(String query) async {
-    final Uri url = Uri.parse('$_myApiBaseUrl/api/BusRoutes/search')
+    final Uri url = Uri.parse('${ApiConfig.busRoutesUrl}/search') // ✅ SỬA
         .replace(queryParameters: {'q': query});
 
     final http.Response response;
@@ -163,9 +175,8 @@ class ApiService {
     }
   }
 
-  // Thêm method lấy chi tiết bus route
   Future<BusRouteModel> getBusRouteDetail(int id) async {
-    final Uri url = Uri.parse('$_myApiBaseUrl/api/BusRoutes/$id');
+    final Uri url = Uri.parse('${ApiConfig.busRoutesUrl}/$id'); // ✅ SỬA
     final http.Response response;
 
     try {
@@ -180,6 +191,63 @@ class ApiService {
       return BusRouteModel.fromJson(jsonData);
     } else {
       throw Exception('Lỗi khi tải chi tiết tuyến: ${response.statusCode}');
+    }
+  }
+
+  Future<Map<String, String>> _getAuthHeaders({bool jsonType = true}) async {
+    // TODO: 1. Lấy JWT Token từ Auth Service (Giả định AuthService tồn tại)
+    // String? token = await AuthService.getToken();
+    String? token = null; // Tạm thời null nếu chưa triển khai AuthService
+
+    final Map<String, String> headers = {
+      'Accept': 'application/json',
+    };
+
+    if (jsonType) {
+      headers['Content-Type'] = 'application/json';
+    }
+
+    if (token != null) {
+      headers['Authorization'] = 'Bearer $token';
+    }
+    return headers;
+  }
+
+  // ✅ Phương thức POST chung
+  // Dùng cho: /api/Booking
+  Future<http.Response> post(String endpoint, Map<String, dynamic> body) async {
+    final Uri url = Uri.parse('$_myApiBaseUrl$endpoint');
+    print('POST: $url');
+    try {
+      return await http.post(
+        url,
+        headers:
+            await _getAuthHeaders(), // Mặc định Content-Type: application/json
+        body: json.encode(body),
+      );
+    } on SocketException {
+      throw const SocketException('Lỗi kết nối mạng hoặc server offline.');
+    } catch (e) {
+      throw Exception('Lỗi kết nối POST: $e');
+    }
+  }
+
+  // ✅ Phương thức PUT chung
+  // Dùng cho: /api/Booking/{id}/cancel
+  Future<http.Response> put(String endpoint,
+      {Map<String, dynamic>? body}) async {
+    final Uri url = Uri.parse('$_myApiBaseUrl$endpoint');
+    print('PUT: $url');
+    try {
+      return await http.put(
+        url,
+        headers: await _getAuthHeaders(),
+        body: body != null ? json.encode(body) : null,
+      );
+    } on SocketException {
+      throw const SocketException('Lỗi kết nối mạng hoặc server offline.');
+    } catch (e) {
+      throw Exception('Lỗi kết nối PUT: $e');
     }
   }
 }
