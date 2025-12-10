@@ -74,7 +74,10 @@ class MyApp extends StatelessWidget {
               future: _getSavedUser(),
               builder: (context, userSnapshot) {
                 if (userSnapshot.hasData && userSnapshot.data != null) {
-                  return HomePage(user: userSnapshot.data!);
+                  return HomePage(
+                    user: userSnapshot.data!,
+                    eventId: null,
+                  );
                 }
                 return const LoginScreen();
               },

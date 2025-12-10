@@ -1,5 +1,5 @@
 class UserModel {
-  final int id; // ✅ Đổi từ String sang int
+  final int id;
   final String username;
   final String email;
   final String? fullName;
@@ -17,10 +17,8 @@ class UserModel {
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
-      id: json['id'] is String
-          ? int.parse(json['id'])
-          : json['id'], // ✅ Parse nếu là String
-      username: json['username'] ?? '',
+      id: json['id'] is String ? int.parse(json['id']) : json['id'],
+      username: json['username'] ?? json['email']?.split('@')[0] ?? '',
       email: json['email'] ?? '',
       fullName: json['fullName'],
       phone: json['phone'],
@@ -39,7 +37,13 @@ class UserModel {
     };
   }
 
-  // ✅ Sửa copyWith
+  String getDisplayName() {
+    if (fullName != null && fullName!.isNotEmpty) {
+      return fullName!;
+    }
+    return email;
+  }
+
   UserModel copyWith({
     int? id,
     String? username,

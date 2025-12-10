@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
 import '../config/api_config.dart';
+import '../models/user_model.dart';
 
 class AuthService {
   // ✅ Dùng config chung
@@ -15,74 +16,57 @@ class AuthService {
     required String password,
   }) async {
     try {
-      debugPrint('🔐 Logging in: $email');
+      print('🔧 Logging in: $email');
 
       final response = await http.post(
-        Uri.parse('$baseUrl/login'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: json.encode({
+        Uri.parse('${ApiConfig.authUrl}/login'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
           'email': email,
           'password': password,
         }),
       );
 
-      debugPrint('📥 Response status: ${response.statusCode}');
-      debugPrint('📥 Response body: ${response.body}');
-
-      final data = json.decode(response.body);
+      print('🔧 Login response status: ${response.statusCode}');
+      print('🔧 Login response body: ${response.body}');
 
       if (response.statusCode == 200) {
-        // ✅ Kiểm tra 2 trường hợp cấu trúc response
+        final data = jsonDecode(response.body);
 
-        // Trường hợp 1: Response có nested "data"
-        String? token;
-        Map<String, dynamic>? userData;
-
-        if (data['data'] != null) {
-          // Response: { "data": { "token": "...", "user": {...} } }
-          token = data['data']['token'];
-          userData = data['data']['user'];
-        } else if (data['token'] != null) {
-          // Response: { "token": "...", "user": {...} }
-          token = data['token'];
-          userData = data['user'];
-        } else {
-          debugPrint('❌ Invalid response structure');
-          return {'success': false, 'message': 'Invalid response structure'};
-        }
-
-        if (token == null || userData == null) {
-          return {'success': false, 'message': 'Token or user data not found'};
-        }
-
-        // Lưu vào SharedPreferences
+        // ✅ Backend trả về: { success: true, data: { token: "...", user: {...} } }
+        // ✅ Lưu token và user
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('auth_token', token);
-        await prefs.setInt('user_id', userData['id']);
-        await prefs.setString('user_username',
-            userData['fullName'] ?? userData['email'].split('@')[0]);
-        await prefs.setString('user_email', userData['email']);
+
+        if (data['data']['token'] != null) {
+          await prefs.setString('token', data['data']['token']);
+          await prefs.setString('jwt_token', data['data']['token']);
+          print('✅ Token saved: ${data['data']['token'].substring(0, 20)}...');
+        }
+
+        if (data['data']['user'] != null) {
+          final userJson = jsonEncode(data['data']['user']);
+          await prefs.setString('user', userJson);
+          print('✅ User saved: ${data['data']['user']['email']}');
+        }
 
         return {
           'success': true,
-          'data': {
-            'token': token,
-            'user': userData,
-          }
+          'message': 'Đăng nhập thành công',
+          'data': data['data'], // ✅ Trả về data object
         };
       } else {
+        final error = jsonDecode(response.body);
         return {
           'success': false,
-          'message': data['message'] ?? 'Đăng nhập thất bại'
+          'message': error['message'] ?? 'Đăng nhập thất bại',
         };
       }
-    } catch (e, stackTrace) {
-      debugPrint('❌ Login error: $e');
-      debugPrint('Stack trace: $stackTrace');
-      return {'success': false, 'message': 'Lỗi kết nối: $e'};
+    } catch (e) {
+      print('❌ Login error: $e');
+      return {
+        'success': false,
+        'message': 'Lỗi kết nối: $e',
+      };
     }
   }
 
@@ -169,32 +153,51 @@ class AuthService {
     }
   }
 
-  // Logout
-  static Future<void> logout() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
-  }
+  // ✅ THÊM: Get current user from SharedPreferences
+  static Future<UserModel?> getCurrentUser() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userJson = prefs.getString('user');
 
-  // Check if logged in
-  static Future<bool> isLoggedIn() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.containsKey('auth_token');
-  }
+      if (userJson != null && userJson.isNotEmpty) {
+        final userData = jsonDecode(userJson);
+        return UserModel.fromJson(userData);
+      }
 
-  // ✅ Get current user
-  static Future<Map<String, dynamic>?> getCurrentUser() async {
-    final prefs = await SharedPreferences.getInstance();
-    final userId = prefs.getInt('user_id');
-    final username = prefs.getString('user_username');
-    final email = prefs.getString('user_email');
-
-    if (userId != null && email != null) {
-      return {
-        'id': userId,
-        'username': username ?? 'User',
-        'email': email,
-      };
+      print('⚠️ No user found in SharedPreferences');
+      return null;
+    } catch (e) {
+      print('❌ Error getting current user: $e');
+      return null;
     }
-    return null;
+  }
+
+  // ✅ THÊM: Get token
+  static Future<String?> getToken() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString('token');
+    } catch (e) {
+      print('❌ Error getting token: $e');
+      return null;
+    }
+  }
+
+  // ✅ THÊM: Check if logged in
+  static Future<bool> isLoggedIn() async {
+    final token = await getToken();
+    return token != null && token.isNotEmpty;
+  }
+
+  // ✅ THÊM: Logout
+  static Future<void> logout() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('token');
+      await prefs.remove('user');
+      print('✅ Logged out successfully');
+    } catch (e) {
+      print('❌ Error logging out: $e');
+    }
   }
 }

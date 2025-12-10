@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/feedback_service.dart';
 import '../services/upload_service.dart';
+import '../services/auth_service.dart';
 import '../models/user_model.dart';
 
 class CreateFeedbackScreen extends StatefulWidget {
@@ -30,6 +31,8 @@ class _CreateFeedbackScreenState extends State<CreateFeedbackScreen> {
   String? _uploadedImageUrl;
   bool _isUploading = false;
 
+  UserModel? _currentUser;
+
   final List<String> _categories = [
     'Giao thông',
     'Môi trường',
@@ -56,6 +59,53 @@ class _CreateFeedbackScreenState extends State<CreateFeedbackScreen> {
     _descriptionController.dispose();
     _locationController.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCurrentUser();
+  }
+
+  // ✅ THÊM: Load user từ token
+  Future<void> _loadCurrentUser() async {
+    if (widget.user != null) {
+      setState(() {
+        _currentUser = widget.user;
+      });
+      return;
+    }
+
+    // Nếu widget.user null, thử lấy từ AuthService
+    try {
+      final user = await AuthService.getCurrentUser();
+      if (user != null) {
+        setState(() {
+          _currentUser = user as UserModel?;
+        });
+      } else {
+        // Chưa đăng nhập → Redirect về login
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('⚠️ Vui lòng đăng nhập để gửi phản ánh'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+          Navigator.pop(context);
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Lỗi: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        Navigator.pop(context);
+      }
+    }
   }
 
   // ✅ PICK IMAGE - GIỐNG FLOOD REPORT
@@ -169,12 +219,22 @@ class _CreateFeedbackScreenState extends State<CreateFeedbackScreen> {
       return;
     }
 
-    // ✅ Kiểm tra đã upload ảnh chưa (nếu có chọn)
     if (_selectedImage != null && _uploadedImageUrl == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('⚠️ Vui lòng upload ảnh trước khi gửi'),
           backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    // ✅ SỬA: Dùng _currentUser thay vì widget.user
+    if (_currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('❌ Lỗi: Không tìm thấy thông tin người dùng'),
+          backgroundColor: Colors.red,
         ),
       );
       return;
@@ -190,11 +250,11 @@ class _CreateFeedbackScreenState extends State<CreateFeedbackScreen> {
         title: _titleController.text.trim(),
         description: _descriptionController.text.trim(),
         category: _selectedCategory,
-        userId: widget.user.id,
+        userId: _currentUser!.id, // ✅ Dùng _currentUser
         location: _locationController.text.trim().isEmpty
             ? null
             : _locationController.text.trim(),
-        imageUrl: _uploadedImageUrl, // ✅ Gửi URL đã upload
+        imageUrl: _uploadedImageUrl,
       );
 
       if (mounted) {
@@ -213,6 +273,18 @@ class _CreateFeedbackScreenState extends State<CreateFeedbackScreen> {
           });
         }
       }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Lỗi: ${e.toString()}';
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Lỗi: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -224,6 +296,18 @@ class _CreateFeedbackScreenState extends State<CreateFeedbackScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // ✅ THÊM: Loading state khi đang load user
+    if (_currentUser == null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Gửi phản ánh'),
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Gửi phản ánh'),

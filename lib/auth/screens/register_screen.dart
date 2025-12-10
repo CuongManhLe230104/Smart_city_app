@@ -1,8 +1,13 @@
 // auth/screens/register_screen.dart
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
 import '../../pages/home_page.dart';
 import '../../models/user_model.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import '../../services/notification_service.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -65,6 +70,47 @@ class _RegisterScreenState extends State<RegisterScreen> {
           email: userData['email'],
         );
 
+        // ✅ Lưu token và user vào SharedPreferences
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('jwt_token', result['data']['token']);
+        await prefs.setString('token', result['data']['token']);
+        await prefs.setString(
+            'user',
+            jsonEncode({
+              'id': userModel.id,
+              'username': userModel.username,
+              'email': userModel.email,
+              'fullName': userModel.fullName,
+              'phone': userModel.phone,
+              'address': userModel.address,
+            }));
+        debugPrint('✅ Login successful');
+        debugPrint('User: ${userData['email']}');
+        debugPrint('JWT Token saved');
+        debugPrint('✅ User object saved to SharedPreferences');
+
+        // ✅ Kiểm tra lại
+        final savedUser = prefs.getString('user');
+        debugPrint('🔧 Saved user: $savedUser');
+
+        // ✅ GỬI FCM TOKEN NGAY SAU KHI LOGIN
+        try {
+          final fcmToken = await FirebaseMessaging.instance.getToken();
+          debugPrint('📤 Getting FCM Token...');
+
+          if (fcmToken != null) {
+            debugPrint('📤 FCM Token: ${fcmToken.substring(0, 50)}...');
+            debugPrint('📤 Sending FCM token to backend...');
+
+            await NotificationService.instance.saveTokenToBackend(fcmToken);
+
+            debugPrint('✅ FCM token sent successfully');
+          } else {
+            debugPrint('⚠️ FCM Token is null');
+          }
+        } catch (e) {
+          debugPrint('❌ Error sending FCM token: $e');
+        }
         if (mounted) {
           // Hiển thị thông báo thành công
           ScaffoldMessenger.of(context).showSnackBar(
@@ -78,7 +124,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
           // Chuyển đến HomePage
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(
-              builder: (context) => HomePage(user: userModel),
+              builder: (context) => HomePage(
+                user: userModel,
+                eventId: null,
+              ),
             ),
             (route) => false,
           );
