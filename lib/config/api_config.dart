@@ -1,7 +1,8 @@
 import 'dart:io' show Platform;
 
 class ApiConfig {
-  static const String _defaultIP = '192.168.1.16';
+  // Dừng ipconfig để lấy địa chỉ ip và thay thế vào đây
+  static const String _defaultIP = '192.168.5.227';
 
   static String get baseIP {
     if (Platform.isAndroid) {
@@ -32,6 +33,7 @@ class ApiConfig {
   static String get locationUrl => '$apiUrl/location';
   static String get travelToursUrl => '$apiUrl/traveltours';
   static String get bookingsUrl => '$apiUrl/bookings';
+  static String get notificationsUrl => '$apiUrl/notifications';
 
   // External APIs
   static const String weatherApiKey = 'b19130f92ebc617c3b3f0d52f0178d18';

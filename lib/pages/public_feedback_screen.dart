@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
-import '../../services/feedback_service.dart';
-import '../../models/user_model.dart';
-import '../../models/feadback_model.dart';
-import 'create_feedback_screen.dart';
-import 'my_feedbacks_screen.dart'; // ⭐ Thêm import
 import 'package:intl/intl.dart';
+import '../services/feedback_service.dart';
+import '../services/auth_service.dart';
+import '../models/user_model.dart';
+import '../models/feedback_model.dart';
+import 'create_feedback_screen.dart';
+import 'my_feedbacks_screen.dart';
 
 class PublicFeedbacksScreen extends StatefulWidget {
-  final UserModel user;
-
-  const PublicFeedbacksScreen({super.key, required this.user});
+  const PublicFeedbacksScreen({Key? key}) : super(key: key);
 
   @override
   State<PublicFeedbacksScreen> createState() => _PublicFeedbacksScreenState();
@@ -23,6 +22,7 @@ class _PublicFeedbacksScreenState extends State<PublicFeedbacksScreen> {
   bool _hasMore = true;
   String? _selectedCategory;
   String? _selectedStatus;
+  UserModel? _currentUser; // ✅ THÊM
 
   final List<String> _categories = [
     'Tất cả',
@@ -45,7 +45,22 @@ class _PublicFeedbacksScreenState extends State<PublicFeedbacksScreen> {
   @override
   void initState() {
     super.initState();
+    _loadCurrentUser(); // ✅ THÊM
     _loadFeedbacks();
+  }
+
+  // ✅ THÊM: Load current user từ SharedPreferences
+  Future<void> _loadCurrentUser() async {
+    try {
+      final user = await AuthService.getCurrentUser();
+      if (mounted) {
+        setState(() {
+          _currentUser = user;
+        });
+      }
+    } catch (e) {
+      print('❌ Error loading current user: $e');
+    }
   }
 
   Future<void> _loadFeedbacks({bool loadMore = false}) async {
@@ -94,11 +109,30 @@ class _PublicFeedbacksScreenState extends State<PublicFeedbacksScreen> {
     }
   }
 
+  // ✅ SỬA: Navigate to Create Feedback
   Future<void> _navigateToCreateFeedback() async {
+    // ✅ Kiểm tra user có tồn tại không
+    if (_currentUser == null) {
+      // Thử load lại user
+      await _loadCurrentUser();
+
+      if (_currentUser == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('⚠️ Vui lòng đăng nhập để gửi phản ánh'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+    }
+
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => CreateFeedbackScreen(user: widget.user),
+        builder: (context) => CreateFeedbackScreen(
+          user: _currentUser!, // ✅ THÊM ! để assert non-null
+        ),
       ),
     );
 
@@ -107,19 +141,35 @@ class _PublicFeedbacksScreenState extends State<PublicFeedbacksScreen> {
     }
   }
 
-  // ⭐ Thêm method mới - Chuyển đến trang "Phản ánh của tôi"
-  void _navigateToMyFeedbacks() {
-    Navigator.push(
+  // ✅ SỬA: Navigate to My Feedbacks
+  Future<void> _navigateToMyFeedbacks() async {
+    // ✅ Kiểm tra user có tồn tại không
+    if (_currentUser == null) {
+      await _loadCurrentUser();
+
+      if (_currentUser == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('⚠️ Vui lòng đăng nhập để xem phản ánh của bạn'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+    }
+
+    final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => MyFeedbacksScreen(user: widget.user),
+        builder: (context) => MyFeedbacksScreen(
+          user: _currentUser!, // ✅ Truyền _currentUser
+        ),
       ),
-    ).then((value) {
-      // Reload khi quay lại từ My Feedbacks
-      if (value == true) {
-        _loadFeedbacks();
-      }
-    });
+    );
+
+    if (result == true) {
+      _loadFeedbacks();
+    }
   }
 
   void _showFilterDialog() {
@@ -148,6 +198,8 @@ class _PublicFeedbacksScreenState extends State<PublicFeedbacksScreen> {
                         _selectedCategory =
                             category == 'Tất cả' ? null : category;
                       });
+                      Navigator.pop(context);
+                      _loadFeedbacks();
                     },
                   );
                 }).toList(),
@@ -168,6 +220,8 @@ class _PublicFeedbacksScreenState extends State<PublicFeedbacksScreen> {
                       setState(() {
                         _selectedStatus = _statuses[status];
                       });
+                      Navigator.pop(context);
+                      _loadFeedbacks();
                     },
                   );
                 }).toList(),
@@ -190,9 +244,8 @@ class _PublicFeedbacksScreenState extends State<PublicFeedbacksScreen> {
           FilledButton(
             onPressed: () {
               Navigator.pop(context);
-              _loadFeedbacks();
             },
-            child: const Text('Áp dụng'),
+            child: const Text('Đóng'),
           ),
         ],
       ),
@@ -206,34 +259,27 @@ class _PublicFeedbacksScreenState extends State<PublicFeedbacksScreen> {
         title: const Text('Phản ánh cộng đồng'),
         elevation: 0,
         actions: [
-          // ⭐ Thêm nút "Phản ánh của tôi"
+          // ✅ Nút My Feedbacks
           IconButton(
             icon: Stack(
               children: [
                 const Icon(Icons.person),
-                Positioned(
-                  right: 0,
-                  top: 0,
-                  child: Container(
-                    padding: const EdgeInsets.all(2),
-                    decoration: BoxDecoration(
-                      color: Colors.blue,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    constraints: const BoxConstraints(
-                      minWidth: 12,
-                      minHeight: 12,
-                    ),
-                    child: const Text(
-                      '',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 8,
+                if (_currentUser != null)
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: Colors.blue,
+                        borderRadius: BorderRadius.circular(6),
                       ),
-                      textAlign: TextAlign.center,
+                      constraints: const BoxConstraints(
+                        minWidth: 8,
+                        minHeight: 8,
+                      ),
                     ),
                   ),
-                ),
               ],
             ),
             tooltip: 'Phản ánh của tôi',
@@ -289,34 +335,38 @@ class _PublicFeedbacksScreenState extends State<PublicFeedbacksScreen> {
                     )
                   : Column(
                       children: [
-                        // ⭐ Thêm banner info
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          margin: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.blue.shade50,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.blue.shade200),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.info, color: Colors.blue.shade700),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  'Đang xem phản ánh của cộng đồng. Nhấn biểu tượng người để xem phản ánh của bạn.',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.blue.shade900,
+                        // Info banner
+                        if (_currentUser != null)
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            margin: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade50,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.blue.shade200),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.info, color: Colors.blue.shade700),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    'Xin chào ${_currentUser!.fullName ?? _currentUser!.email}! Nhấn biểu tượng người để xem phản ánh của bạn.',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.blue.shade900,
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
                         Expanded(
                           child: RefreshIndicator(
-                            onRefresh: _loadFeedbacks,
+                            onRefresh: () async {
+                              await _loadCurrentUser();
+                              await _loadFeedbacks();
+                            },
                             child: ListView.builder(
                               padding:
                                   const EdgeInsets.symmetric(horizontal: 16),

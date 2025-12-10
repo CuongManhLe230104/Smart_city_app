@@ -250,4 +250,6 @@ class ApiService {
       throw Exception('Lỗi kết nối PUT: $e');
     }
   }
+
+  static Future login(String trim, String text) async {}
 }

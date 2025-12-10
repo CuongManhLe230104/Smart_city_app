@@ -16,10 +16,11 @@ import 'all_flood_reports_page.dart';
 import 'tour_list_page.dart';
 import 'my_bookings_page.dart';
 import 'notifications_page.dart';
+import '../pages/full_item.dart';
 
 class HomePage extends StatefulWidget {
   final UserModel user;
-  const HomePage({super.key, required this.user});
+  const HomePage({super.key, required this.user, required eventId});
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -227,7 +228,8 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
               color: Colors.blue,
               onTap: () {
                 Navigator.pop(context);
-                _navigateTo(context, AllFloodReportsPage(user: widget.user));
+                // ✅ SỬA: Bỏ user parameter
+                _navigateTo(context, const AllFloodReportsPage());
               },
             ),
             const SizedBox(height: 12),
@@ -501,8 +503,10 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
         title: 'Phản ánh',
         icon: Icons.forum_rounded,
         color: Colors.teal,
-        onTap: () =>
-            _navigateTo(context, PublicFeedbacksScreen(user: widget.user)),
+        onTap: () => _navigateTo(
+          context,
+          const PublicFeedbacksScreen(), // ✅ BỎ: user parameter
+        ),
       ),
       _FunctionItem(
         title: 'Du lịch',
@@ -526,18 +530,12 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
         onTap: () => _showFloodReportBottomSheet(context),
       ),
       _FunctionItem(
-        title: 'Ưu đãi',
-        icon: Icons.local_offer_rounded,
-        color: Colors.red,
-        onTap: () =>
-            _navigateTo(context, const PlaceholderPage(title: 'Ưu đãi')),
-      ),
-      _FunctionItem(
         title: 'Xem tất cả',
         icon: Icons.grid_view_rounded,
         color: Colors.grey,
         onTap: () => _navigateTo(
-            context, const PlaceholderPage(title: 'Tất cả chức năng')),
+            context, AllFunctionsPage(user: widget.user) // Truyền user vào
+            ),
       ),
     ];
 

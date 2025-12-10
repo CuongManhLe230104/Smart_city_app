@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
-import '../services/floodreport_service.dart';
-import '../models/flood_report_model.dart';
-import '../models/user_model.dart'; // ✅ THÊM import
-import 'my_flood_report_page.dart'; // ✅ THÊM import
 import 'package:intl/intl.dart';
+import '../services/floodreport_service.dart';
+import '../services/auth_service.dart';
+import '../models/user_model.dart';
+import '../models/flood_report_model.dart';
+import 'my_flood_report_page.dart';
 
 class AllFloodReportsPage extends StatefulWidget {
-  final UserModel user; // ✅ THÊM property user
-
-  const AllFloodReportsPage(
-      {super.key, required this.user}); // ✅ SỬA constructor
+  const AllFloodReportsPage({Key? key})
+      : super(key: key); // ✅ BỎ tất cả parameters
 
   @override
   State<AllFloodReportsPage> createState() => _AllFloodReportsPageState();
@@ -96,11 +95,23 @@ class _AllFloodReportsPageState extends State<AllFloodReportsPage> {
   }
 
   // ✅ THÊM method này
-  void _navigateToMyReports() {
+  Future<void> _navigateToMyReports() async {
+    final user = await AuthService.getCurrentUser();
+
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('⚠️ Vui lòng đăng nhập'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => MyFloodReportsPage(user: widget.user),
+        builder: (context) => MyFloodReportsPage(user: user),
       ),
     ).then((value) {
       if (value == true) {
