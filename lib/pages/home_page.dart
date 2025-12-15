@@ -515,14 +515,6 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
         onTap: () => _navigateTo(
             context, const TourListPage()), // 👈 Điều hướng đến TourListPage
       ),
-      // 🆕 LỊCH SỬ ĐẶT TOUR
-      _FunctionItem(
-        title: 'Tour của tôi',
-        icon: Icons.bookmark_added_rounded, // Icon cho lịch sử đặt tour
-        color: Colors.brown,
-        onTap: () => _navigateTo(context,
-            const MyBookingsPage()), // 👈 Điều hướng đến MyBookingsPage
-      ),
       _FunctionItem(
         title: 'Mức mưa',
         icon: Icons.water_drop_rounded,

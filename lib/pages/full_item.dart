@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
-import 'placeholder_page.dart';
 import './test_map_page.dart';
 import 'bus_routes_page.dart';
 import 'search_page.dart';
@@ -9,7 +8,6 @@ import 'flood_report_page.dart';
 import 'flood_map_page.dart';
 import 'all_flood_reports_page.dart';
 import 'tour_list_page.dart';
-import 'my_bookings_page.dart';
 
 // Class định nghĩa item dịch vụ (đặt nội bộ trong file này)
 class _ServiceItem {
@@ -200,23 +198,10 @@ class AllFunctionsPage extends StatelessWidget {
         onTap: () => _navigateTo(context, const TourListPage()),
       ),
       _ServiceItem(
-        title: 'Tour của tôi',
-        icon: Icons.bookmark_added_rounded,
-        color: Colors.brown,
-        onTap: () => _navigateTo(context, const MyBookingsPage()),
-      ),
-      _ServiceItem(
         title: 'Mức mưa',
         icon: Icons.water_drop_rounded,
         color: Colors.cyan,
         onTap: () => _showFloodReportBottomSheet(context),
-      ),
-      _ServiceItem(
-        title: 'Ưu đãi',
-        icon: Icons.local_offer_rounded,
-        color: Colors.red,
-        onTap: () =>
-            _navigateTo(context, const PlaceholderPage(title: 'Ưu đãi')),
       ),
       // Bạn có thể thêm các chức năng khác ở đây trong tương lai
     ];

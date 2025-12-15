@@ -7,7 +7,7 @@ import '../models/event_banner_model.dart';
 import '../config/api_config.dart';
 
 class ApiService {
-  static const String _myApiBaseUrl = 'http://10.0.2.2:5000';
+  static const String _myApiBaseUrl = 'http://10.0.2.2:4000';
   // --- 1. API THỜI TIẾT (giữ nguyên) ---
   Future<String> fetchWeather() async {
     if (ApiConfig.weatherApiKey == 'YOUR_API_KEY_HERE') {

@@ -65,7 +65,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         final userModel = UserModel(
           id: userData['id'] is String
               ? int.parse(userData['id'])
-              : userData['id'], // ✅ Chuyển sang int
+              : userData['id'],
           username: userData['fullName'] ?? userData['email'].split('@')[0],
           email: userData['email'],
         );
@@ -166,6 +166,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color.fromARGB(255, 159, 209, 241),
       appBar: AppBar(
         title: const Text('Tạo Tài Khoản'),
         elevation: 0,

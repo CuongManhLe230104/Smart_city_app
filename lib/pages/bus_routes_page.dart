@@ -4,6 +4,7 @@ import '../services/api_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 
+// Màn hình danh sách tuyến xe buýt (Stateful vì có dữ liệu thay đổi: loading, list xe, tìm kiếm)
 class BusRoutesPage extends StatefulWidget {
   const BusRoutesPage({super.key});
 
@@ -12,59 +13,79 @@ class BusRoutesPage extends StatefulWidget {
 }
 
 class _BusRoutesPageState extends State<BusRoutesPage> {
+  // Service để gọi API lấy dữ liệu
   final ApiService _apiService = ApiService();
+  // Controller quản lý ô nhập liệu tìm kiếm
   final TextEditingController _searchController = TextEditingController();
 
-  List<BusRouteModel> _allRoutes = [];
-  List<BusRouteModel> _displayedRoutes = [];
-  Set<int> _favoriteRoutes = {};
-  bool _isLoading = true;
-  String _errorMessage = '';
+  // Biến trạng thái (State variables)
+  List<BusRouteModel> _allRoutes =
+      []; // Lưu trữ TOÀN BỘ danh sách xe lấy từ API (để backup khi tìm kiếm)
+  List<BusRouteModel> _displayedRoutes =
+      []; // Danh sách ĐANG HIỂN THỊ trên màn hình (đã qua lọc/tìm kiếm)
+  Set<int> _favoriteRoutes =
+      {}; // Lưu ID các tuyến yêu thích (Dùng Set để không trùng lặp và tìm kiếm nhanh O(1))
+  bool _isLoading = true; // Cờ trạng thái: true = đang tải, false = tải xong
+  String _errorMessage = ''; // Lưu thông báo lỗi nếu gọi API thất bại
 
+  // Hàm khởi tạo, chạy 1 lần duy nhất khi màn hình được tạo
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _loadData(); // Bắt đầu quy trình tải dữ liệu
   }
 
+  // Hàm điều phối việc tải dữ liệu
   Future<void> _loadData() async {
-    await _loadFavorites();
-    await _loadBusRoutes();
+    await _loadFavorites(); // 1. Tải danh sách yêu thích từ bộ nhớ máy trước
+    await _loadBusRoutes(); // 2. Sau đó mới tải danh sách xe từ API
   }
 
+  // Đọc danh sách yêu thích từ SharedPreferences (Local Storage)
   Future<void> _loadFavorites() async {
     final prefs = await SharedPreferences.getInstance();
     final favoritesJson = prefs.getString('favorite_bus_routes');
+
+    // Nếu có dữ liệu cũ đã lưu
     if (favoritesJson != null) {
       final List<dynamic> favoritesList = jsonDecode(favoritesJson);
       setState(() {
+        // Chuyển đổi List thành Set để gán vào biến trạng thái
         _favoriteRoutes = favoritesList.cast<int>().toSet();
       });
     }
   }
 
+  // Lưu danh sách yêu thích xuống máy (gọi khi người dùng bấm nút sao)
   Future<void> _saveFavorites() async {
     final prefs = await SharedPreferences.getInstance();
+    // Mã hóa danh sách ID thành chuỗi JSON để lưu
     await prefs.setString(
       'favorite_bus_routes',
       jsonEncode(_favoriteRoutes.toList()),
     );
   }
 
+  // Gọi API lấy danh sách tuyến xe
   Future<void> _loadBusRoutes() async {
+    // Cập nhật UI: Hiện vòng quay loading, xóa lỗi cũ
     setState(() {
       _isLoading = true;
       _errorMessage = '';
     });
 
     try {
+      // Gọi API (bất đồng bộ)
       final routes = await _apiService.fetchBusRoutes();
+
+      // Khi có dữ liệu thành công -> Cập nhật UI
       setState(() {
-        _allRoutes = routes;
-        _displayedRoutes = routes;
-        _isLoading = false;
+        _allRoutes = routes; // Lưu gốc
+        _displayedRoutes = routes; // Hiển thị ban đầu là tất cả
+        _isLoading = false; // Tắt loading
       });
     } catch (e) {
+      // Nếu lỗi mạng hoặc server -> Hiện thông báo lỗi
       setState(() {
         _errorMessage = e.toString();
         _isLoading = false;
@@ -72,7 +93,9 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
     }
   }
 
+  // Logic tìm kiếm (Search Filter)
   void _searchRoutes(String query) {
+    // Nếu ô tìm kiếm trống -> Hiện lại tất cả danh sách
     if (query.isEmpty) {
       setState(() {
         _displayedRoutes = _allRoutes;
@@ -80,8 +103,11 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
       return;
     }
 
+    // Nếu có từ khóa -> Lọc danh sách _allRoutes
     setState(() {
       _displayedRoutes = _allRoutes.where((route) {
+        // Kiểm tra từ khóa có nằm trong: Số xe HOẶC Tên xe HOẶC Điểm đầu HOẶC Điểm cuối
+        // toLowerCase() để so sánh không phân biệt hoa thường
         return route.routeNumber.toLowerCase().contains(query.toLowerCase()) ||
             route.routeName.toLowerCase().contains(query.toLowerCase()) ||
             (route.startPoint?.toLowerCase().contains(query.toLowerCase()) ??
@@ -92,23 +118,27 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
     });
   }
 
+  // Xử lý khi bấm nút Yêu thích (Ngôi sao)
   void _toggleFavorite(int routeId) {
     setState(() {
       if (_favoriteRoutes.contains(routeId)) {
+        // Nếu đang thích -> Xóa khỏi danh sách
         _favoriteRoutes.remove(routeId);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('❌ Đã xóa khỏi yêu thích')),
         );
       } else {
+        // Nếu chưa thích -> Thêm vào danh sách
         _favoriteRoutes.add(routeId);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('⭐ Đã thêm vào yêu thích')),
         );
       }
     });
-    _saveFavorites();
+    _saveFavorites(); // Lưu ngay xuống bộ nhớ máy
   }
 
+  // Hiển thị Menu lọc (Filter Bottom Sheet)
   void _showFilterOptions() {
     showModalBottomSheet(
       context: context,
@@ -118,7 +148,7 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
       builder: (context) => Container(
         padding: const EdgeInsets.all(24),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: MainAxisSize.min, // Chỉ cao vừa đủ nội dung
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
@@ -126,25 +156,28 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
+            // Tùy chọn 1: Chỉ hiện xe yêu thích
             ListTile(
               leading: const Icon(Icons.star, color: Colors.amber),
               title: const Text('Tuyến yêu thích'),
               onTap: () {
-                Navigator.pop(context);
+                Navigator.pop(context); // Đóng menu
                 setState(() {
+                  // Lọc list gốc, chỉ lấy xe có ID nằm trong set _favoriteRoutes
                   _displayedRoutes = _allRoutes
                       .where((r) => _favoriteRoutes.contains(r.id))
                       .toList();
                 });
               },
             ),
+            // Tùy chọn 2: Hiện tất cả
             ListTile(
               leading: const Icon(Icons.all_inclusive, color: Colors.blue),
               title: const Text('Tất cả tuyến'),
               onTap: () {
-                Navigator.pop(context);
+                Navigator.pop(context); // Đóng menu
                 setState(() {
-                  _displayedRoutes = _allRoutes;
+                  _displayedRoutes = _allRoutes; // Reset về danh sách gốc
                 });
               },
             ),
@@ -154,12 +187,14 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
     );
   }
 
+  // Hủy controller khi thoát màn hình để tránh rò rỉ bộ nhớ
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
   }
 
+  // === PHẦN XÂY DỰNG GIAO DIỆN (UI) ===
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -167,6 +202,7 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
         title: const Text('Tuyến xe buýt'),
         elevation: 0,
         actions: [
+          // Nút mở menu lọc
           IconButton(
             icon: const Icon(Icons.filter_list),
             onPressed: _showFilterOptions,
@@ -175,22 +211,23 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
       ),
       body: Column(
         children: [
-          // Search bar
+          // --- 1. THANH TÌM KIẾM ---
           Container(
             padding: const EdgeInsets.all(16),
             color: Colors.blue.shade50,
             child: TextField(
               controller: _searchController,
-              onChanged: _searchRoutes,
+              onChanged: _searchRoutes, // Gọi hàm tìm kiếm mỗi khi gõ phím
               decoration: InputDecoration(
                 hintText: 'Tìm tuyến xe...',
                 prefixIcon: const Icon(Icons.search),
+                // Nút X để xóa text nhanh
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
                         icon: const Icon(Icons.clear),
                         onPressed: () {
                           _searchController.clear();
-                          _searchRoutes('');
+                          _searchRoutes(''); // Reset list khi xóa
                         },
                       )
                     : null,
@@ -204,12 +241,14 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
             ),
           ),
 
-          // Body
+          // --- 2. DANH SÁCH TUYẾN XE (Phần thân chính) ---
           Expanded(
+            // Kiểm tra trạng thái loading/error/data
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? const Center(child: CircularProgressIndicator()) // Đang tải
                 : _errorMessage.isNotEmpty
                     ? Center(
+                        // Có lỗi
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
@@ -219,7 +258,7 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
                             Text(_errorMessage, textAlign: TextAlign.center),
                             const SizedBox(height: 16),
                             FilledButton.icon(
-                              onPressed: _loadBusRoutes,
+                              onPressed: _loadBusRoutes, // Cho phép tải lại
                               icon: const Icon(Icons.refresh),
                               label: const Text('Thử lại'),
                             ),
@@ -228,6 +267,7 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
                       )
                     : _displayedRoutes.isEmpty
                         ? Center(
+                            // Không tìm thấy kết quả nào
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
@@ -237,28 +277,32 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
                                 Text(
                                   'Không tìm thấy tuyến xe nào',
                                   style: TextStyle(
-                                    fontSize: 18,
-                                    color: Colors.grey.shade600,
-                                  ),
+                                      fontSize: 18,
+                                      color: Colors.grey.shade600),
                                 ),
                               ],
                             ),
                           )
                         : RefreshIndicator(
+                            // Kéo xuống để làm mới
                             onRefresh: _loadBusRoutes,
                             child: ListView.builder(
                               padding: const EdgeInsets.all(16),
                               itemCount: _displayedRoutes.length,
                               itemBuilder: (context, index) {
                                 final route = _displayedRoutes[index];
+                                // Kiểm tra xe này có phải yêu thích không
                                 final isFavorite =
                                     _favoriteRoutes.contains(route.id);
+
+                                // Render từng thẻ xe
                                 return _BusRouteCard(
                                   route: route,
                                   isFavorite: isFavorite,
                                   onFavoriteTap: () =>
                                       _toggleFavorite(route.id),
-                                  onTap: () => _showRouteDetail(route),
+                                  onTap: () =>
+                                      _showRouteDetail(route), // Mở chi tiết
                                 );
                               },
                             ),
@@ -269,6 +313,7 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
     );
   }
 
+  // Chuyển sang màn hình chi tiết
   void _showRouteDetail(BusRouteModel route) {
     Navigator.push(
       context,
@@ -279,6 +324,7 @@ class _BusRoutesPageState extends State<BusRoutesPage> {
   }
 }
 
+// Widget hiển thị 1 thẻ xe trong danh sách (Tách ra cho code gọn)
 class _BusRouteCard extends StatelessWidget {
   final BusRouteModel route;
   final bool isFavorite;
@@ -299,6 +345,7 @@ class _BusRouteCard extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       elevation: 2,
       child: InkWell(
+        // Hiệu ứng gợn sóng khi bấm
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
@@ -308,7 +355,7 @@ class _BusRouteCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  // Route number badge
+                  // Badge hiển thị Số xe (VD: 01, 15)
                   Container(
                     width: 50,
                     height: 50,
@@ -329,7 +376,7 @@ class _BusRouteCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 12),
 
-                  // Route info
+                  // Thông tin Tên tuyến và mô tả
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -345,8 +392,9 @@ class _BusRouteCard extends StatelessWidget {
                         if (route.description != null)
                           Text(
                             route.description!,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1, // Chỉ hiện 1 dòng
+                            overflow: TextOverflow
+                                .ellipsis, // Dài quá thì hiện dấu ...
                             style: TextStyle(
                               fontSize: 12,
                               color: Colors.grey.shade600,
@@ -356,11 +404,15 @@ class _BusRouteCard extends StatelessWidget {
                     ),
                   ),
 
-                  // Favorite button
+                  // Nút ngôi sao yêu thích
                   IconButton(
                     icon: Icon(
-                      isFavorite ? Icons.star : Icons.star_border,
-                      color: isFavorite ? Colors.amber : Colors.grey,
+                      isFavorite
+                          ? Icons.star
+                          : Icons.star_border, // Sao đặc hoặc sao rỗng
+                      color: isFavorite
+                          ? Colors.amber
+                          : Colors.grey, // Vàng hoặc xám
                     ),
                     onPressed: onFavoriteTap,
                   ),
@@ -371,7 +423,7 @@ class _BusRouteCard extends StatelessWidget {
               const Divider(),
               const SizedBox(height: 8),
 
-              // Route details
+              // Hiển thị Điểm đi -> Điểm đến (dùng Widget con _InfoChip)
               Row(
                 children: [
                   Expanded(
@@ -396,7 +448,7 @@ class _BusRouteCard extends StatelessWidget {
 
               const SizedBox(height: 12),
 
-              // Additional info
+              // Các thông tin phụ: Giờ chạy, thời gian, giá vé
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -422,6 +474,7 @@ class _BusRouteCard extends StatelessWidget {
   }
 }
 
+// Widget con hiển thị dạng thẻ nhỏ (Chip) cho địa điểm
 class _InfoChip extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -438,7 +491,7 @@ class _InfoChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withOpacity(0.1), // Màu nền nhạt
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: color.withOpacity(0.3)),
       ),
@@ -465,6 +518,7 @@ class _InfoChip extends StatelessWidget {
   }
 }
 
+// Widget con hiển thị dòng thông tin nhỏ kèm icon
 class _InfoItem extends StatelessWidget {
   final IconData icon;
   final String text;
@@ -490,7 +544,7 @@ class _InfoItem extends StatelessWidget {
   }
 }
 
-// Trang chi tiết tuyến xe
+// === MÀN HÌNH CHI TIẾT TUYẾN XE ===
 class BusRouteDetailPage extends StatelessWidget {
   final BusRouteModel route;
 
@@ -504,16 +558,18 @@ class BusRouteDetailPage extends StatelessWidget {
         elevation: 0,
       ),
       body: SingleChildScrollView(
+        // Cho phép cuộn nếu nội dung dài
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header với ảnh
+            // --- 1. ẢNH HEADER ---
             if (route.imageUrl != null)
               Image.network(
                 route.imageUrl!,
                 width: double.infinity,
                 height: 200,
                 fit: BoxFit.cover,
+                // Xử lý khi load ảnh lỗi -> hiện placeholder
                 errorBuilder: (context, error, stackTrace) {
                   return Container(
                     height: 200,
@@ -523,6 +579,7 @@ class BusRouteDetailPage extends StatelessWidget {
                 },
               )
             else
+              // Nếu không có URL ảnh -> hiện placeholder mặc định
               Container(
                 height: 200,
                 color: Colors.blue.shade100,
@@ -540,7 +597,7 @@ class BusRouteDetailPage extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Route number & name
+                  // --- 2. TIÊU ĐỀ (Số xe & Tên xe) ---
                   Row(
                     children: [
                       Container(
@@ -574,6 +631,7 @@ class BusRouteDetailPage extends StatelessWidget {
                     ],
                   ),
 
+                  // Mô tả chi tiết
                   if (route.description != null) ...[
                     const SizedBox(height: 16),
                     Text(
@@ -590,7 +648,7 @@ class BusRouteDetailPage extends StatelessWidget {
                   const Divider(),
                   const SizedBox(height: 16),
 
-                  // Thông tin chi tiết
+                  // --- 3. THÔNG TIN CHI TIẾT (Điểm đi/đến, giờ, giá) ---
                   _DetailRow(
                     icon: Icons.location_on,
                     label: 'Điểm đầu',
@@ -622,7 +680,7 @@ class BusRouteDetailPage extends StatelessWidget {
                     color: Colors.purple,
                   ),
 
-                  // Các điểm dừng
+                  // --- 4. DANH SÁCH TRẠM DỪNG (Timeline) ---
                   if (route.stops != null && route.stops!.isNotEmpty) ...[
                     const SizedBox(height: 24),
                     const Text(
@@ -633,9 +691,10 @@ class BusRouteDetailPage extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 12),
+                    // Duyệt danh sách các trạm dừng để render giao diện
                     ...route.stops!.asMap().entries.map((entry) {
-                      final index = entry.key;
-                      final stop = entry.value;
+                      final index = entry.key; // Số thứ tự (0, 1, 2...)
+                      final stop = entry.value; // Tên trạm
                       final isFirst = index == 0;
                       final isLast = index == route.stops!.length - 1;
 
@@ -643,12 +702,14 @@ class BusRouteDetailPage extends StatelessWidget {
                         padding: const EdgeInsets.only(bottom: 8),
                         child: Row(
                           children: [
+                            // Cột bên trái: Số thứ tự và đường nối
                             Column(
                               children: [
                                 Container(
                                   width: 24,
                                   height: 24,
                                   decoration: BoxDecoration(
+                                    // Đổi màu: Đầu=Xanh, Cuối=Đỏ, Giữa=Xanh dương
                                     color: isFirst
                                         ? Colors.green
                                         : isLast
@@ -658,7 +719,7 @@ class BusRouteDetailPage extends StatelessWidget {
                                   ),
                                   child: Center(
                                     child: Text(
-                                      '${index + 1}',
+                                      '${index + 1}', // Hiện số thứ tự bắt đầu từ 1
                                       style: const TextStyle(
                                         color: Colors.white,
                                         fontSize: 12,
@@ -667,6 +728,7 @@ class BusRouteDetailPage extends StatelessWidget {
                                     ),
                                   ),
                                 ),
+                                // Vẽ đường nối dọc (trừ điểm cuối cùng)
                                 if (!isLast)
                                   Container(
                                     width: 2,
@@ -676,6 +738,7 @@ class BusRouteDetailPage extends StatelessWidget {
                               ],
                             ),
                             const SizedBox(width: 12),
+                            // Cột bên phải: Tên trạm
                             Expanded(
                               child: Container(
                                 padding: const EdgeInsets.all(12),
@@ -706,6 +769,7 @@ class BusRouteDetailPage extends StatelessWidget {
   }
 }
 
+// Widget con hiển thị dòng chi tiết (dùng trong màn hình Detail)
 class _DetailRow extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -726,6 +790,7 @@ class _DetailRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Icon có nền nhạt
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
@@ -735,6 +800,7 @@ class _DetailRow extends StatelessWidget {
             child: Icon(icon, size: 24, color: color),
           ),
           const SizedBox(width: 12),
+          // Label và Value
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

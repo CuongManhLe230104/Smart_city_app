@@ -138,7 +138,9 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color.fromARGB(255, 159, 209, 241),
       appBar: AppBar(
+        backgroundColor: const Color.fromARGB(255, 159, 209, 241),
         title: const Text('Đăng nhập'),
         centerTitle: true,
       ),
@@ -151,10 +153,16 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(
-                    Icons.location_city,
-                    size: 80,
-                    color: Colors.blue,
+                  ClipRRect(
+                    // 1. Bọc Image.asset bằng ClipRRect
+                    borderRadius:
+                        BorderRadius.circular(24), // 2. Đặt borderRadius ở đây
+                    child: Image.asset(
+                      'assets/VTSMARTCITY.png',
+                      height: 120,
+                      fit: BoxFit
+                          .cover, // (Tuỳ chọn) Giúp ảnh không bị méo khi bo góc
+                    ),
                   ),
                   const SizedBox(height: 20),
                   const Text(
@@ -246,6 +254,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
+                        backgroundColor:
+                            const Color.fromARGB(255, 28, 125, 204),
                       ),
                       child: _isLoading
                           ? const SizedBox(
@@ -253,13 +263,14 @@ class _LoginScreenState extends State<LoginScreen> {
                               width: 20,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                valueColor:
-                                    AlwaysStoppedAnimation<Color>(Colors.white),
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                    Color.fromARGB(255, 255, 255, 255)),
                               ),
                             )
                           : const Text(
                               'Đăng nhập',
-                              style: TextStyle(fontSize: 16),
+                              style:
+                                  TextStyle(fontSize: 16, color: Colors.white),
                             ),
                     ),
                   ),

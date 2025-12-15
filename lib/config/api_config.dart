@@ -2,7 +2,7 @@ import 'dart:io' show Platform;
 
 class ApiConfig {
   // Dừng ipconfig để lấy địa chỉ ip và thay thế vào đây
-  static const String _defaultIP = '192.168.5.227';
+  static const String _defaultIP = '10.178.21.100';
 
   static String get baseIP {
     if (Platform.isAndroid) {
@@ -10,7 +10,6 @@ class ApiConfig {
       if (envIP.isNotEmpty) {
         return envIP;
       }
-
       return _defaultIP;
     } else if (Platform.isIOS) {
       return 'localhost';
