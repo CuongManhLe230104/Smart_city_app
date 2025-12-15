@@ -74,7 +74,7 @@ class _AllFloodReportsPageState extends State<AllFloodReportsPage> {
           mainAxisSize: MainAxisSize.min,
           children: _statuses.keys.map((status) {
             final isSelected = _selectedStatus == _statuses[status] ||
-                (_selectedStatus == null && status == 'Tất cả');
+                (_selectedStatus == null && status == 'Đã duyệt');
             return RadioListTile<String>(
               title: Text(status),
               value: _statuses[status]!,
@@ -241,8 +241,6 @@ class _ReportCard extends StatelessWidget {
             // Ảnh
             if (report.imageUrl.isNotEmpty)
               ClipRRect(
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(12)),
                 child: Image.network(
                   report.imageUrl,
                   width: double.infinity,
